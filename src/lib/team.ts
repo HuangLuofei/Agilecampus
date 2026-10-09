@@ -69,6 +69,15 @@ export async function listTeamMembers(teamId: string) {
     .where(eq(teamMembers.teamId, teamId));
 }
 
+// 我担任管理员的团队（供「所有项目」页新建项目选择所属团队）
+export async function listAdminTeams(actorId: string) {
+  return db
+    .select({ id: teams.id, name: teams.name })
+    .from(teamMembers)
+    .innerJoin(teams, eq(teamMembers.teamId, teams.id))
+    .where(and(eq(teamMembers.userId, actorId), eq(teamMembers.role, "admin")));
+}
+
 export async function updateMemberRole(
   actorId: string,
   teamId: string,

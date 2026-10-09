@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
 import { countUnreadNotifications } from "@/lib/notification";
+import { countUnreadChats } from "@/lib/chat";
 
 export default async function AppLayout({
   children,
@@ -11,6 +12,7 @@ export default async function AppLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
   const unreadCount = await countUnreadNotifications(session.user.id);
+  const unreadChats = await countUnreadChats(session.user.id);
 
   return (
     <div className="min-h-screen">
@@ -39,14 +41,14 @@ export default async function AppLayout({
               我的团队
             </Link>
             <Link
-              href="/notifications"
+              href="/messages"
               className="relative rounded-field px-2.5 py-1.5 text-sm text-ink-soft transition-colors hover:bg-primary-soft hover:text-primary"
-              aria-label={`通知${unreadCount ? `，${unreadCount} 条未读` : ""}`}
+              aria-label={`消息${unreadCount + unreadChats ? `，${unreadCount + unreadChats} 条未读` : ""}`}
             >
-              通知
-              {unreadCount > 0 && (
+              消息
+              {unreadCount + unreadChats > 0 && (
                 <span className="ml-1 inline-grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
-                  {unreadCount > 99 ? "99+" : unreadCount}
+                  {unreadCount + unreadChats > 99 ? "99+" : unreadCount + unreadChats}
                 </span>
               )}
             </Link>

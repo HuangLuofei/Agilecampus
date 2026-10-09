@@ -1,6 +1,7 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
+  chatRooms,
   milestones,
   projects,
   teamMembers,
@@ -22,16 +23,21 @@ export async function createProject(
   },
 ) {
   await requireTeamRole(actorId, teamId, ["admin"]);
-  const [project] = await db
-    .insert(projects)
-    .values({
-      teamId,
-      name: input.name,
-      description: input.description,
-      startDate: input.startDate,
-      endDate: input.endDate,
-    })
-    .returning();
+  const [project] = await db.transaction(async (tx) => {
+    const [p] = await tx
+      .insert(projects)
+      .values({
+        teamId,
+        name: input.name,
+        description: input.description,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      })
+      .returning();
+    // 每个项目自动初始化一个群聊（群聊名读取时由「项目名-团队名」推导）
+    await tx.insert(chatRooms).values({ type: "group", projectId: p.id });
+    return [p];
+  });
   return project;
 }
 

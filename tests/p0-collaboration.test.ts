@@ -79,13 +79,14 @@ describe("P0 collaboration", () => {
     const { owner, student, outsider, task } = await scene();
     await createTaskComment(student.id, task.id, "需要确认接口格式");
     const items = await listNotifications(owner.id);
-    expect(items).toHaveLength(1);
-    expect(items[0].type).toBe("task_commented");
-    expect(items[0].linkUrl).toContain(`task=${task.id}`);
-    expect(await countUnreadNotifications(owner.id)).toBe(1);
-    await expect(markNotificationRead(outsider.id, items[0].id)).rejects.toThrow("通知不存在");
-    await markNotificationRead(owner.id, items[0].id);
-    expect(await countUnreadNotifications(owner.id)).toBe(0);
+    // 建任务时也会异步产生一条 task_assigned 通知（fire-and-forget），故只定位评论通知断言
+    const commentNotif = items.find((i) => i.type === "task_commented");
+    expect(commentNotif).toBeTruthy();
+    expect(commentNotif!.linkUrl).toContain(`task=${task.id}`);
+    expect(commentNotif!.isRead).toBe(false);
+    await expect(markNotificationRead(outsider.id, commentNotif!.id)).rejects.toThrow("通知不存在");
+    await markNotificationRead(owner.id, commentNotif!.id);
+    expect((await listNotifications(owner.id)).find((i) => i.id === commentNotif!.id)?.isRead).toBe(true);
 
     await createTaskComment(student.id, task.id, "第二条");
     await markAllNotificationsRead(owner.id);

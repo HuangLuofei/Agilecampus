@@ -1,74 +1,69 @@
 @import "tailwindcss";
 
 /* ============================================================
-   AgileCampus 设计系统 · 「学术工作台」
-   净暖白纸背景 · 雅靛蓝主色 · 琥珀点缀 · 衬线标题 + Geist 正文
+   AgileCampus 设计系统 · 「飞书风」
+   冷灰底 · 品牌蓝 #3370FF · 无衬线 · 扁平干净
    ============================================================ */
 
 @theme {
-  /* 中性 · 净暖白纸感（略提对比，更清透） */
-  --color-canvas: #f3f1ea;
+  /* 中性 · 冷灰 */
+  --color-canvas: #f5f6f7;
   --color-surface: #ffffff;
-  --color-sunken: #f0ede4;
-  --color-ink: #1a1913;
-  --color-ink-soft: #514c43;
-  --color-ink-faint: #928b7e;
-  --color-line: #e8e3d8;
-  --color-line-strong: #d8d1c2;
+  --color-sunken: #f0f1f2;
+  --color-ink: #1f2329;
+  --color-ink-soft: #51565d;
+  --color-ink-faint: #8f959e;
+  --color-line: #e5e6eb;
+  --color-line-strong: #d0d3d9;
 
-  /* 主色 · 藏青（更沉稳有分量） */
-  --color-primary: #294a78;
-  --color-primary-hover: #1e3a60;
-  --color-primary-soft: #e8eef8;
-  --color-primary-ring: #bcccea;
+  /* 主色 · 飞书蓝 */
+  --color-primary: #3370ff;
+  --color-primary-hover: #2e65f0;
+  --color-primary-soft: #eef3fe;
+  --color-primary-ring: #c4d5ff;
 
-  /* 点缀 · 赭陶（更暖润） */
-  --color-accent: #bf6a34;
-  --color-accent-soft: #f6e7d5;
+  /* 点缀 · 警示橙 */
+  --color-accent: #ff8800;
+  --color-accent-soft: #fff3e5;
 
   /* 语义 · 看板列 */
-  --color-todo: #7c8698;
-  --color-doing: #35548c;
-  --color-done: #3f7a58;
+  --color-todo: #8f959e;
+  --color-doing: #3370ff;
+  --color-done: #2ea121;
 
   /* 语义 · 优先级 */
-  --color-high: #b6482f;
-  --color-high-soft: #f7e4dd;
-  --color-medium: #a9722a;
-  --color-medium-soft: #f5e9d2;
-  --color-low: #6f7987;
-  --color-low-soft: #ecedf0;
+  --color-high: #f54a45;
+  --color-high-soft: #ffedea;
+  --color-medium: #ff8800;
+  --color-medium-soft: #fff3e5;
+  --color-low: #8f959e;
+  --color-low-soft: #f0f1f2;
 
-  /* 字体 */
+  /* 字体 · 全无衬线 */
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-display: var(--font-display), Georgia, "Songti SC", serif;
+  --font-display: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
 
   /* 形状 */
-  --radius-card: 0.75rem;
+  --radius-card: 0.5rem;
   --radius-field: 0.5rem;
 }
 
 :root {
-  --shadow-card: 0 1px 2px rgba(28, 22, 12, 0.05), 0 8px 22px -10px rgba(28, 22, 12, 0.10);
-  --shadow-pop: 0 4px 10px rgba(28, 22, 12, 0.07), 0 18px 40px -14px rgba(28, 22, 12, 0.18);
+  --shadow-card: 0 1px 2px rgba(31, 35, 41, 0.04), 0 4px 12px -4px rgba(31, 35, 41, 0.06);
+  --shadow-pop: 0 4px 12px rgba(31, 35, 41, 0.08), 0 16px 32px -12px rgba(31, 35, 41, 0.18);
 }
 
 body {
   background-color: var(--color-canvas);
-  background-image:
-    radial-gradient(circle at 1px 1px, rgba(28, 22, 12, 0.024) 1px, transparent 0);
-  background-size: 24px 24px;
   color: var(--color-ink);
   font-family: var(--font-sans);
-  font-feature-settings: "cv11", "ss01";
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
-/* 衬线标题工具类 */
+/* 标题工具类（无衬线） */
 .font-display {
   font-family: var(--font-display);
-  letter-spacing: -0.01em;
 }
 
 @layer components {
@@ -112,12 +107,10 @@ body {
     font-size: 0.875rem;
     font-weight: 500;
     color: #fff;
-    box-shadow: 0 1px 2px rgba(28, 22, 12, 0.14);
-    transition: background-color 0.15s ease, transform 0.05s ease, box-shadow 0.15s ease;
+    transition: background-color 0.15s ease;
   }
   .ac-btn:hover:not(:disabled) {
     background-color: var(--color-primary-hover);
-    box-shadow: 0 2px 8px -1px rgba(56, 82, 127, 0.35);
   }
   .ac-btn:active:not(:disabled) {
     transform: translateY(0.5px);
@@ -158,4 +151,105 @@ body {
     font-weight: 600;
     letter-spacing: 0.01em;
   }
+
+  /* Markdown 正文排版（云文档查看页用） */
+  .md-body {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--color-ink);
+    overflow-wrap: break-word;
+  }
+  .md-body > :first-child { margin-top: 0; }
+  .md-body > :last-child { margin-bottom: 0; }
+  .md-body h1,
+  .md-body h2,
+  .md-body h3,
+  .md-body h4 {
+    font-family: var(--font-display);
+    color: var(--color-ink);
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 1.5em 0 0.6em;
+  }
+  .md-body h1 { font-size: 1.5rem; }
+  .md-body h2 {
+    font-size: 1.25rem;
+    border-bottom: 1px solid var(--color-line);
+    padding-bottom: 0.3em;
+  }
+  .md-body h3 { font-size: 1.1rem; }
+  .md-body h4 { font-size: 1rem; }
+  .md-body p { margin: 0.6em 0; }
+  .md-body a {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .md-body a:hover { color: var(--color-primary-hover); }
+  .md-body ul,
+  .md-body ol {
+    margin: 0.6em 0;
+    padding-left: 1.4em;
+  }
+  .md-body ul { list-style: disc; }
+  .md-body ol { list-style: decimal; }
+  .md-body li { margin: 0.25em 0; }
+  .md-body li > ul,
+  .md-body li > ol { margin: 0.2em 0; }
+  .md-body blockquote {
+    margin: 0.8em 0;
+    padding: 0.4em 1em;
+    border-left: 3px solid var(--color-line-strong);
+    color: var(--color-ink-soft);
+    background: var(--color-sunken);
+    border-radius: 0 var(--radius-field) var(--radius-field) 0;
+  }
+  .md-body code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85em;
+    background: var(--color-sunken);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+  .md-body pre {
+    margin: 0.8em 0;
+    padding: 0.9em 1em;
+    background: var(--color-ink);
+    color: #f2f3f5;
+    border-radius: var(--radius-field);
+    overflow-x: auto;
+    line-height: 1.5;
+  }
+  .md-body pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+    font-size: 0.85em;
+  }
+  .md-body hr {
+    margin: 1.5em 0;
+    border: none;
+    border-top: 1px solid var(--color-line);
+  }
+  .md-body table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0.8em 0;
+    font-size: 0.85em;
+  }
+  .md-body th,
+  .md-body td {
+    border: 1px solid var(--color-line-strong);
+    padding: 0.45em 0.7em;
+    text-align: left;
+  }
+  .md-body th {
+    background: var(--color-sunken);
+    font-weight: 600;
+  }
+  .md-body img {
+    max-width: 100%;
+    border-radius: var(--radius-field);
+  }
+  .md-body input[type="checkbox"] { margin-right: 0.4em; }
 }

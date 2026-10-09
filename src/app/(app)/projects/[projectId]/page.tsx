@@ -91,12 +91,20 @@ export default async function ProjectPage({
       <header>
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-display text-2xl font-semibold text-ink">{project.name}</h1>
-          <a
-            href={`/projects/${projectId}/timeline`}
-            className="ac-btn-ghost whitespace-nowrap"
-          >
-            时间线
-          </a>
+          <div className="flex shrink-0 gap-2">
+            <a
+              href={`/projects/${projectId}/docs`}
+              className="ac-btn-ghost whitespace-nowrap"
+            >
+              文档
+            </a>
+            <a
+              href={`/projects/${projectId}/timeline`}
+              className="ac-btn-ghost whitespace-nowrap"
+            >
+              时间线
+            </a>
+          </div>
         </div>
         {project.description && (
           <p className="mt-1 text-sm text-ink-soft">{project.description}</p>

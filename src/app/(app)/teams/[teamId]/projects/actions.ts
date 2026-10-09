@@ -45,5 +45,6 @@ export async function createProjectAction(
     throw e;
   }
   revalidatePath(`/teams/${parsed.data.teamId}/projects`);
+  revalidatePath("/projects");
   return null;
 }

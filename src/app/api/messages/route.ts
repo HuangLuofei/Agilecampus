@@ -1,0 +1,29 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { auth } from "@/lib/auth";
+import { listRoomMessages, listMyRooms } from "@/lib/chat";
+import { AppError, ForbiddenError } from "@/lib/errors";
+
+// 轮询：拉取某会话消息 + 全量未读（供侧栏红点）
+export async function GET(req: Request) {
+  const session = await auth();
+  if (!session?.user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+
+  const roomId = new URL(req.url).searchParams.get("roomId");
+  if (!roomId || !z.uuid().safeParse(roomId).success) {
+    return NextResponse.json({ error: "参数无效" }, { status: 400 });
+  }
+
+  try {
+    const [messages, { groupRooms, dmRooms, unreadTotal }] = await Promise.all([
+      listRoomMessages(session.user.id, roomId),
+      listMyRooms(session.user.id),
+    ]);
+    return NextResponse.json({ messages, groupRooms, dmRooms, unreadTotal });
+  } catch (e) {
+    if (e instanceof ForbiddenError) return NextResponse.json({ error: "没有权限" }, { status: 403 });
+    if (e instanceof AppError) return NextResponse.json({ error: e.message }, { status: 400 });
+    console.error("[/api/messages] 拉取失败:", e);
+    return NextResponse.json({ error: "加载失败，请重试" }, { status: 500 });
+  }
+}

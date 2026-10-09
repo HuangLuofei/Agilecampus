@@ -22,6 +22,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "task_updated",
   "ai_committed",
   "system",
+  "announcement",
 ]);
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
@@ -310,6 +311,9 @@ export const notifications = pgTable('notifications', {
   content: text('content').notNull(),
   type: notificationTypeEnum('type').notNull(),
   linkUrl: text('link_url'),
+  // 公告用：发布者 + 对应项目（事件型通知为 null）
+  actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   isRead: boolean('is_read').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
@@ -342,4 +346,62 @@ export const taskEvents = pgTable('task_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("task_events_task_created_idx").on(t.taskId, t.createdAt),
+]);
+
+// 4. 云文档：挂在项目下，Markdown 正文，项目内全员可编辑。
+// category 为自由文本分类/目录；全文搜索走 ILIKE（中文不适合 PG 默认分词器）。
+export const documents = pgTable('documents', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  content: text('content').notNull().default(''),
+  category: text('category'),
+  createdById: uuid('created_by_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  updatedById: uuid('updated_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("documents_project_idx").on(t.projectId),
+  index("documents_project_category_idx").on(t.projectId, t.category),
+]);
+
+// 5. 真人聊天：dm=全局一对一私聊，group=项目群聊（按项目初始化）
+export const chatRoomTypeEnum = pgEnum("chat_room_type", ["dm", "group"]);
+export type ChatRoomType = (typeof chatRoomTypeEnum.enumValues)[number];
+
+export const chatRooms = pgTable('chat_rooms', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  type: chatRoomTypeEnum('type').notNull(),
+  // group 用：绑定项目
+  projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  // dm 用：全局一对一，规范化 A<B 存储，唯一约束防重复
+  dmUserAId: uuid('dm_user_a_id').references(() => users.id, { onDelete: 'cascade' }),
+  dmUserBId: uuid('dm_user_b_id').references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("chat_rooms_project_idx").on(t.projectId),
+  uniqueIndex("chat_rooms_dm_pair_unique").on(t.dmUserAId, t.dmUserBId),
+]);
+
+// 每成员每会话的已读水位（lastReadAt null=从未读）。DM 建会话即写两行；群聊首次读时懒写。
+// 仅作读状态，不作为发消息的准入依据（发消息权限另由 dm 双方/团队身份判定）。
+export const chatRoomMembers = pgTable('chat_room_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roomId: uuid('room_id').notNull().references(() => chatRooms.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  lastReadAt: timestamp('last_read_at', { withTimezone: true }),
+}, (t) => [
+  uniqueIndex("chat_room_members_room_user_unique").on(t.roomId, t.userId),
+  index("chat_room_members_user_idx").on(t.userId),
+]);
+
+export const chatMessages = pgTable('chat_messages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roomId: uuid('room_id').notNull().references(() => chatRooms.id, { onDelete: 'cascade' }),
+  senderId: uuid('sender_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("chat_messages_room_created_idx").on(t.roomId, t.createdAt),
 ]);

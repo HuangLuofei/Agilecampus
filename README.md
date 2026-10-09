@@ -12,6 +12,8 @@
 - **Personal API Token**：生成/撤销令牌，供外部程序以本人身份写入
 - **Agent 写入 API**：Claude Code 等携令牌直接添加任务、填写完成情况、登记资源占用
 - **时间线甘特**：项目内任务按里程碑分组的甘特视图，逾期标红、今日竖线
+- **成员对话**：按项目划分的群聊（每项目自动初始化，群聊名 = 项目-团队）+ 全局一对一私聊，未读红点与已读/未读
+- **消息中心**：通知与对话合并为一个「消息」入口（两 Tab，未读红点合并）
 
 ## 技术栈
 
@@ -76,6 +78,8 @@ docker compose -f docker-compose.prod.yml up -d --build
 | `/projects` | 所有项目总览（跨团队聚合 + 任务统计） |
 | `/projects/[projectId]` | 项目详情：里程碑 + 看板 + 任务 + AI 助手 |
 | `/projects/[projectId]/timeline` | 项目时间线甘特 |
+| `/projects/[projectId]/docs` | 项目云文档：Markdown 文档 + 全文搜索 + 分类 |
+| `/messages` | 消息中心：通知 + 对话两 Tab（按项目划分的群聊 + 全局一对一私聊 + 未读红点） |
 | `/settings/tokens` | 个人访问令牌（生成/撤销） |
 
 ---

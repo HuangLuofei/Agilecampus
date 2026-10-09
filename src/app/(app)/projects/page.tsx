@@ -2,18 +2,26 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listMyProjects } from "@/lib/project";
+import { listAdminTeams } from "@/lib/team";
+import { NewProjectForm } from "./new-project-form";
 
 export default async function AllProjectsPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const projects = await listMyProjects(session.user.id);
+  const [projects, adminTeams] = await Promise.all([
+    listMyProjects(session.user.id),
+    listAdminTeams(session.user.id),
+  ]);
 
   return (
     <main className="mx-auto max-w-3xl space-y-8 py-8">
       <h1 className="font-display text-2xl font-semibold text-ink">所有项目</h1>
+      {adminTeams.length > 0 && <NewProjectForm teams={adminTeams} />}
       {projects.length === 0 ? (
         <div className="ac-card p-8 text-center text-sm text-ink-soft">
-          暂无项目——先在团队中创建。
+          {adminTeams.length > 0
+            ? "暂无项目——用上方表单创建第一个。"
+            : "暂无项目——加入团队后即可在此查看项目。"}
         </div>
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2">

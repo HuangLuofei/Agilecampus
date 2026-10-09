@@ -274,6 +274,7 @@ export async function markNotificationReadAction(formData: FormData) {
   if (!session?.user) return;
   const parsed = z.object({ notificationId: z.uuid() }).safeParse(Object.fromEntries(formData));
   if (parsed.success) await markNotificationRead(session.user.id, parsed.data.notificationId);
+  revalidatePath("/messages");
   revalidatePath("/notifications");
 }
 
@@ -281,5 +282,6 @@ export async function markAllNotificationsReadAction() {
   const session = await auth();
   if (!session?.user) return;
   await markAllNotificationsRead(session.user.id);
+  revalidatePath("/messages");
   revalidatePath("/notifications");
 }
