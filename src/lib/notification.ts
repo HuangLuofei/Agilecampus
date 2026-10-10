@@ -1,9 +1,7 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { notifications, projects, tasks, users, type NotificationType } from "@/db/schema";
-import { AppError, ForbiddenError } from "./errors";
-import { getProjectForUser } from "./project";
-import { listTeamMembers } from "./team";
+import { AppError } from "./errors";
 
 export async function createNotification(input: {
   userId: string;
@@ -29,35 +27,6 @@ export async function createNotification(input: {
   return notification;
 }
 
-// 发布公告：项目成员对项目所在团队广播，写明发布者与对应项目（排除发布者本人）
-export async function publishAnnouncement(
-  actorId: string,
-  projectId: string,
-  input: { title: string; content: string },
-) {
-  const title = input.title.trim();
-  const content = input.content.trim();
-  if (!title) throw new AppError("公告标题不能为空");
-  if (!content) throw new AppError("公告内容不能为空");
-
-  const access = await getProjectForUser(actorId, projectId);
-  if (!access) throw new ForbiddenError();
-
-  const members = await listTeamMembers(access.project.teamId);
-  for (const m of members) {
-    if (m.id === actorId) continue;
-    await createNotification({
-      userId: m.id,
-      title,
-      content,
-      type: "announcement",
-      linkUrl: `/projects/${projectId}`,
-      actorId,
-      projectId,
-    });
-  }
-}
-
 export async function listNotifications(actorId: string, limit = 40) {
   return db
     .select({
@@ -71,6 +40,7 @@ export async function listNotifications(actorId: string, limit = 40) {
       createdAt: notifications.createdAt,
       actorId: notifications.actorId,
       projectId: notifications.projectId,
+      announcementId: notifications.announcementId,
       actorName: users.name,
       projectName: projects.name,
     })
