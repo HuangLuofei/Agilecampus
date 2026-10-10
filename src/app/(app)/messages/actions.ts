@@ -10,6 +10,12 @@ import {
   publishAnnouncement,
   updateAnnouncementComment,
 } from "@/lib/announcement";
+import {
+  createTaskEventComment,
+  deleteTaskEventComment,
+  markTaskEventNotificationRead,
+  updateTaskEventComment,
+} from "@/lib/activity";
 import { AppError, ForbiddenError } from "@/lib/errors";
 
 export type FormState = { error: string } | null;
@@ -136,5 +142,98 @@ export async function markAnnouncementReadAction(announcementId: string): Promis
   await markAnnouncementRead(session.user.id, announcementId);
   revalidatePath("/messages");
   revalidatePath(`/messages/announcements/${announcementId}`);
+  return null;
+}
+
+export async function markTaskEventReadAction(eventId: string): Promise<FormState> {
+  const session = await auth();
+  if (!session?.user) return { error: "请先登录" };
+  if (!z.uuid().safeParse(eventId).success) return { error: "参数无效" };
+
+  await markTaskEventNotificationRead(session.user.id, eventId);
+  revalidatePath("/messages");
+  revalidatePath(`/messages/changes/${eventId}`);
+  return null;
+}
+
+const eventCommentSchema = z.object({
+  eventId: z.uuid(),
+  content: z.string().trim().min(1, "评论不能为空").max(2000, "评论不能超过 2000 字"),
+});
+
+export async function createTaskEventCommentAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const session = await auth();
+  if (!session?.user) return { error: "请先登录" };
+
+  const parsed = eventCommentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  try {
+    await createTaskEventComment(session.user.id, parsed.data.eventId, parsed.data.content);
+  } catch (e) {
+    if (e instanceof ForbiddenError) return { error: "没有权限发表评论" };
+    if (e instanceof AppError) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/messages/changes/${parsed.data.eventId}`);
+  return null;
+}
+
+const updateEventCommentSchema = z.object({
+  eventId: z.uuid(),
+  commentId: z.uuid(),
+  content: z.string().trim().min(1, "评论不能为空").max(2000, "评论不能超过 2000 字"),
+});
+
+export async function updateTaskEventCommentAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const session = await auth();
+  if (!session?.user) return { error: "请先登录" };
+
+  const parsed = updateEventCommentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  try {
+    await updateTaskEventComment(session.user.id, parsed.data.commentId, parsed.data.content);
+  } catch (e) {
+    if (e instanceof ForbiddenError) return { error: "没有权限编辑该评论" };
+    if (e instanceof AppError) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/messages/changes/${parsed.data.eventId}`);
+  return null;
+}
+
+const deleteEventCommentSchema = z.object({
+  eventId: z.uuid(),
+  commentId: z.uuid(),
+});
+
+export async function deleteTaskEventCommentAction(
+  _prev: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const session = await auth();
+  if (!session?.user) return { error: "请先登录" };
+
+  const parsed = deleteEventCommentSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  try {
+    await deleteTaskEventComment(session.user.id, parsed.data.commentId);
+  } catch (e) {
+    if (e instanceof ForbiddenError) return { error: "没有权限删除该评论" };
+    if (e instanceof AppError) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/messages/changes/${parsed.data.eventId}`);
   return null;
 }

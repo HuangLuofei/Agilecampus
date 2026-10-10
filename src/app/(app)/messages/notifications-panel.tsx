@@ -15,7 +15,22 @@ const TYPE_LABEL: Record<string, string> = {
   ai_committed: "AI 操作",
   system: "系统通知",
   announcement: "公告",
+  document_created: "新文档",
+  document_updated: "文档更新",
+  document_deleted: "文档删除",
+  resource_logged: "资源登记",
+  resource_ended: "资源结束",
+  task_due_soon: "到期提醒",
 };
+
+// 这些类型的通知在副标题里展示操作者（公告另走「发布者」）
+const SHOW_ACTOR = new Set([
+  "document_created",
+  "document_updated",
+  "document_deleted",
+  "resource_logged",
+  "resource_ended",
+]);
 
 type Items = Awaited<ReturnType<typeof listNotifications>>;
 
@@ -58,6 +73,12 @@ export function NotificationsPanel({
                     发布者：{item.actorName ?? "未知"} · 项目：{item.projectName ?? "—"}
                   </p>
                 )}
+                {SHOW_ACTOR.has(item.type) && (
+                  <p className="mt-0.5 text-xs text-ink-faint">
+                    操作者：{item.actorName ?? "未知"}
+                    {item.projectName && <> · 项目：{item.projectName}</>}
+                  </p>
+                )}
                 <p className="mt-1 text-sm text-ink-soft">{item.content}</p>
                 <time className="mt-1 block text-xs text-ink-faint">
                   {item.createdAt.toLocaleString("zh-CN")}
@@ -72,7 +93,7 @@ export function NotificationsPanel({
                 )}
                 {item.linkUrl && (
                   <Link href={item.linkUrl} className="ac-btn-ghost text-xs">
-                    查看
+                    {item.linkUrl.startsWith("/messages/changes/") ? "查看变更" : "查看"}
                   </Link>
                 )}
               </div>

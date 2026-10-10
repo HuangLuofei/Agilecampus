@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth, signOut } from "@/lib/auth";
 import { countUnreadNotifications } from "@/lib/notification";
 import { countUnreadChats } from "@/lib/chat";
+import { syncDueSoonNotifications } from "@/lib/reminder";
 
 export default async function AppLayout({
   children,
@@ -11,8 +12,16 @@ export default async function AppLayout({
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
-  const unreadCount = await countUnreadNotifications(session.user.id);
-  const unreadChats = await countUnreadChats(session.user.id);
+  // 进入应用即生成临期/逾期提醒（按天去重），再统计未读，使角标即时反映
+  const due = await syncDueSoonNotifications(session.user.id);
+  const [unreadCount, unreadChats] = await Promise.all([
+    countUnreadNotifications(session.user.id),
+    countUnreadChats(session.user.id),
+  ]);
+
+  const dueParts: string[] = [];
+  if (due.overdue > 0) dueParts.push(`${due.overdue} 个任务已逾期`);
+  if (due.dueSoon > 0) dueParts.push(`${due.dueSoon} 个任务即将到期`);
 
   return (
     <div className="min-h-screen">
@@ -71,6 +80,18 @@ export default async function AppLayout({
           <button className="ac-btn-ghost">退出</button>
         </form>
       </header>
+      {dueParts.length > 0 && (
+        <div className="border-b border-line bg-high-soft">
+          <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-2 text-sm text-high">
+            <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-high" />
+            <span className="font-medium">到期提醒</span>
+            <span>{dueParts.join("，")}</span>
+            <Link href="/messages?tab=notifications" className="underline hover:no-underline">
+              查看提醒
+            </Link>
+          </div>
+        </div>
+      )}
       <div className="mx-auto max-w-5xl p-6">{children}</div>
     </div>
   );

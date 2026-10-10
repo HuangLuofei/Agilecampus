@@ -24,6 +24,12 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "ai_committed",
   "system",
   "announcement",
+  "document_created",
+  "document_updated",
+  "document_deleted",
+  "resource_logged",
+  "resource_ended",
+  "task_due_soon",
 ]);
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
@@ -344,12 +350,15 @@ export const notifications = pgTable('notifications', {
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
   // 公告用：关联公告实体（同一次发布 fan-out 出的 N 行共享此 id）；事件型通知为 null
   announcementId: uuid('announcement_id').references(() => announcements.id, { onDelete: 'cascade' }),
+  // 变更类通知用：关联具体某条 task_events（「查看变更」跳 /messages/changes/{id}）；公告/系统通知为 null
+  taskEventId: uuid('task_event_id').references(() => taskEvents.id, { onDelete: 'cascade' }),
   isRead: boolean('is_read').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("notifications_user_created_idx").on(t.userId, t.createdAt),
   index("notifications_user_unread_idx").on(t.userId, t.isRead),
   index("notifications_announcement_idx").on(t.announcementId),
+  index("notifications_task_event_idx").on(t.taskEventId),
 ]);
 
 // 2. 任务评论表
@@ -377,6 +386,19 @@ export const taskEvents = pgTable('task_events', {
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("task_events_task_created_idx").on(t.taskId, t.createdAt),
+]);
+
+// 3b. 变更评论表：挂在具体某条 task_events 上（镜像 announcement_comments）
+export const taskEventComments = pgTable('task_event_comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventId: uuid('event_id').notNull().references(() => taskEvents.id, { onDelete: 'cascade' }),
+  authorId: uuid('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("task_event_comments_event_created_idx").on(t.eventId, t.createdAt),
 ]);
 
 // 4. 云文档：挂在项目下，Markdown 正文，项目内全员可编辑。
