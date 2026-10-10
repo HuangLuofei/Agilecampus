@@ -15,6 +15,8 @@ const L = "44444444-4444-4444-4444-444444444444";
 
 function task(over: Partial<FilterableTask> = {}): FilterableTask {
   return {
+    title: "任务",
+    description: null,
     assigneeId: null,
     priority: "medium",
     milestoneId: null,
@@ -57,6 +59,14 @@ describe("parseFilters", () => {
     const f = parseFilters(new URLSearchParams(`task=${A}`));
     expect(f).toEqual(EMPTY_FILTERS);
   });
+
+  it("解析关键词并去除首尾空白", () => {
+    expect(parseFilters(new URLSearchParams("q=%20调研%20")).q).toBe("调研");
+  });
+
+  it("纯空白关键词归一为空串", () => {
+    expect(parseFilters(new URLSearchParams("q=%20%20")).q).toBe("");
+  });
 });
 
 describe("serializeFilters", () => {
@@ -77,6 +87,15 @@ describe("serializeFilters", () => {
 
   it("默认分组不写入 query", () => {
     expect(serializeFilters({ ...EMPTY_FILTERS, group: "status" })).toBe("");
+  });
+
+  it("空白关键词不写入 query", () => {
+    expect(serializeFilters({ ...EMPTY_FILTERS, q: "   " })).toBe("");
+  });
+
+  it("关键词可往返", () => {
+    const f = { ...EMPTY_FILTERS, q: "调研 问卷" };
+    expect(parseFilters(new URLSearchParams(serializeFilters(f)))).toEqual(f);
   });
 });
 
@@ -121,6 +140,33 @@ describe("applyFilters", () => {
       task({ assigneeId: B, priority: "high" }),
     ];
     const f = { ...EMPTY_FILTERS, assignee: [A], priority: ["high"] };
+    expect(applyFilters(list, f, today)).toHaveLength(1);
+  });
+
+  it("关键词匹配标题，大小写不敏感", () => {
+    const list = [task({ title: "Write API Docs" }), task({ title: "搭架子" })];
+    expect(applyFilters(list, { ...EMPTY_FILTERS, q: "api" }, today)).toHaveLength(1);
+    expect(applyFilters(list, { ...EMPTY_FILTERS, q: "API DOCS" }, today)).toHaveLength(1);
+  });
+
+  it("关键词也匹配描述", () => {
+    const list = [task({ title: "甲", description: "补充说明若干" }), task({ title: "乙" })];
+    expect(applyFilters(list, { ...EMPTY_FILTERS, q: "说明" }, today)).toHaveLength(1);
+  });
+
+  it("无匹配则排除，空白关键词不过滤", () => {
+    const list = [task({ title: "甲" })];
+    expect(applyFilters(list, { ...EMPTY_FILTERS, q: "不存在" }, today)).toHaveLength(0);
+    expect(applyFilters(list, { ...EMPTY_FILTERS, q: "   " }, today)).toHaveLength(1);
+  });
+
+  it("关键词与其它维度是交集", () => {
+    const list = [
+      task({ title: "调研问卷", priority: "high" }),
+      task({ title: "调研提纲", priority: "low" }),
+      task({ title: "搭架子", priority: "high" }),
+    ];
+    const f = { ...EMPTY_FILTERS, q: "调研", priority: ["high"] };
     expect(applyFilters(list, f, today)).toHaveLength(1);
   });
 });

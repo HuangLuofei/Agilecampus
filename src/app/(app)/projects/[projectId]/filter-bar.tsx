@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import {
   parseFilters,
@@ -47,6 +48,46 @@ export function FilterBar({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   }
 
+  // 关键词：本地即时回显 + 防抖写入 URL，免得每敲一个字就打一次 replace。
+  const [term, setTerm] = useState(filters.q);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 记下最近一次由本组件写入 URL 的关键词，用于区分外部变化（前进/后退）与自身输入。
+  const pushedRef = useRef(filters.q);
+  // 定时器回调必须用「最新」筛选态：若防抖等待期间用户点了别的 chip，
+  // 沿用闭包里的旧 filters 会把那次点击覆盖掉。
+  const filtersRef = useRef(filters);
+  useEffect(() => {
+    filtersRef.current = filters;
+  });
+
+  function stopTimer() {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  function commitTerm(value: string) {
+    const q = value.trim();
+    pushedRef.current = q;
+    push({ ...filtersRef.current, q });
+  }
+
+  function changeTerm(value: string) {
+    setTerm(value);
+    stopTimer();
+    timerRef.current = setTimeout(() => commitTerm(value), 250);
+  }
+
+  useEffect(() => {
+    if (filters.q === pushedRef.current) return;
+    stopTimer();
+    pushedRef.current = filters.q;
+    setTerm(filters.q);
+  }, [filters.q]);
+
+  useEffect(() => stopTimer, []);
+
   function toggle(key: "assignee" | "priority" | "label" | "milestone", id: string) {
     const cur = filters[key];
     const next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
@@ -58,6 +99,7 @@ export function FilterBar({
     filters.priority.length > 0 ||
     filters.label.length > 0 ||
     filters.milestone.length > 0 ||
+    filters.q.length > 0 ||
     filters.overdue;
 
   return (
@@ -121,6 +163,21 @@ export function FilterBar({
       </div>
 
       <div className="flex flex-wrap items-center gap-2 border-t border-line pt-2">
+        <input
+          type="search"
+          value={term}
+          onChange={(e) => changeTerm(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              stopTimer();
+              commitTerm(term);
+            }
+          }}
+          placeholder="搜索标题或描述…"
+          aria-label="搜索任务标题或描述"
+          className="ac-field w-56 py-1 text-sm"
+        />
         <span className="text-xs font-medium text-ink-soft">分组依据</span>
         <select
           value={filters.group}
@@ -139,7 +196,10 @@ export function FilterBar({
         {dirty && (
           <button
             type="button"
-            onClick={() =>
+            onClick={() => {
+              stopTimer();
+              setTerm("");
+              pushedRef.current = "";
               push({
                 ...filters,
                 assignee: [],
@@ -147,8 +207,9 @@ export function FilterBar({
                 label: [],
                 milestone: [],
                 overdue: false,
-              })
-            }
+                q: "",
+              });
+            }}
             className="text-xs text-ink-faint underline hover:text-primary"
           >
             清空筛选
