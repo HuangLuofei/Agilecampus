@@ -8,10 +8,13 @@ export type BoardFilters = {
   label: string[]; // uuid
   milestone: string[]; // uuid 或 "none"（无里程碑）
   overdue: boolean;
+  q: string; // 标题/描述关键词；空串表示不搜索
   group: GroupBy;
 };
 
 export type FilterableTask = {
+  title: string;
+  description: string | null;
   assigneeId: string | null;
   priority: string;
   milestoneId: string | null;
@@ -30,6 +33,7 @@ export const EMPTY_FILTERS: BoardFilters = {
   label: [],
   milestone: [],
   overdue: false,
+  q: "",
   group: "status",
 };
 
@@ -52,6 +56,7 @@ export function parseFilters(params: URLSearchParams): BoardFilters {
     label: idList(params.get("label"), false),
     milestone: idList(params.get("milestone"), true),
     overdue: params.get("overdue") === "1",
+    q: (params.get("q") ?? "").trim(),
     group: GROUPS.includes(group as GroupBy) ? (group as GroupBy) : "status",
   };
 }
@@ -64,6 +69,8 @@ export function serializeFilters(f: BoardFilters): string {
   if (f.label.length) p.set("label", f.label.join(","));
   if (f.milestone.length) p.set("milestone", f.milestone.join(","));
   if (f.overdue) p.set("overdue", "1");
+  const q = f.q.trim();
+  if (q) p.set("q", q);
   if (f.group !== "status") p.set("group", f.group);
   return p.toString();
 }
@@ -73,12 +80,14 @@ export function applyFilters<T extends FilterableTask>(
   f: BoardFilters,
   today: string,
 ): T[] {
+  const q = f.q.trim().toLowerCase();
   return list.filter((t) => {
     if (f.assignee.length && !f.assignee.includes(t.assigneeId ?? "none")) return false;
     if (f.priority.length && !f.priority.includes(t.priority)) return false;
     if (f.milestone.length && !f.milestone.includes(t.milestoneId ?? "none")) return false;
     if (f.label.length && !t.labels.some((l) => f.label.includes(l.id))) return false;
     if (f.overdue && !(t.dueDate && t.dueDate < today && t.status !== "done")) return false;
+    if (q && !`${t.title}\n${t.description ?? ""}`.toLowerCase().includes(q)) return false;
     return true;
   });
 }
