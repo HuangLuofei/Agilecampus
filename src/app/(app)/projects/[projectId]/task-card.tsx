@@ -10,6 +10,7 @@ import {
   type UpdateTaskState,
 } from "./actions";
 import { LABEL_COLOR_CLASS } from "@/lib/board-columns";
+import { classifyDue, todayStartMs } from "@/lib/due";
 import type { BoardTask } from "./board";
 
 export type Option = { id: string; name: string; skillTags?: string[] };
@@ -58,6 +59,7 @@ export function TaskCard({
     .filter((d) => d.predecessorId === task.id)
     .map((d) => allTasks.find((t) => t.id === d.successorId)?.title)
     .filter(Boolean);
+  const dueState = classifyDue(task.dueDate, task.status, todayStartMs());
 
   return (
     <div
@@ -67,7 +69,13 @@ export function TaskCard({
           ? { transform: `translate(${transform.x}px, ${transform.y}px)` }
           : undefined
       }
-      className={`ac-card p-3 text-sm transition hover:shadow-md ${isDragging ? "opacity-50" : ""}`}
+      className={`ac-card p-3 text-sm transition hover:shadow-md ${
+        dueState === "overdue"
+          ? "border-high"
+          : dueState === "soon"
+            ? "border-medium"
+            : ""
+      } ${isDragging ? "opacity-50" : ""}`}
     >
       <div
         {...listeners}
@@ -78,7 +86,26 @@ export function TaskCard({
         <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
           <span>{task.assigneeName ?? "未分配"}</span>
           {(task.startDate || task.dueDate) && (
-            <span>· {task.startDate ?? "…"}→{task.dueDate ?? "…"}</span>
+            <span
+              className={
+                dueState === "overdue"
+                  ? "font-medium text-high"
+                  : dueState === "soon"
+                    ? "font-medium text-medium"
+                    : ""
+              }
+            >
+              · {task.startDate ?? "…"}→{task.dueDate ?? "…"}
+            </span>
+          )}
+          {dueState !== "ok" && (
+            <span
+              className={`ac-badge ${
+                dueState === "overdue" ? "bg-high-soft text-high" : "bg-medium-soft text-medium"
+              }`}
+            >
+              {dueState === "overdue" ? "逾期" : "临期"}
+            </span>
           )}
           <span className={`ac-badge ${PRIORITY_BADGE[task.priority] ?? "bg-low-soft text-low"}`}>
             {task.priority}

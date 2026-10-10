@@ -4,6 +4,7 @@ import { db } from "@/db";
 import { documents, users } from "@/db/schema";
 import { AppError, ForbiddenError } from "./errors";
 import { getProjectForUser } from "./project";
+import { notifyTeamMembers } from "./notification";
 
 // 同一张 users 表需两次关联（创建者/更新者），用别名区分
 const updater = alias(users, "updater");
@@ -40,7 +41,7 @@ async function requireDocumentAccess(actorId: string, documentId: string) {
   if (!doc) throw new AppError("文档不存在");
   const access = await getProjectForUser(actorId, doc.projectId);
   if (!access) throw new ForbiddenError();
-  return doc;
+  return { doc, access };
 }
 
 // 列举项目文档（倒序），支持按关键词搜索与按分类过滤
@@ -139,6 +140,16 @@ export async function createDocument(
       updatedById: actorId,
     })
     .returning();
+
+  void notifyTeamMembers({
+    teamId: access.project.teamId,
+    actorId,
+    type: "document_created",
+    title: "新文档",
+    content: `文档《${title}》已创建`,
+    linkUrl: `/projects/${projectId}/docs/${doc.id}`,
+    projectId,
+  });
   return doc;
 }
 
@@ -148,7 +159,7 @@ export async function updateDocument(
   documentId: string,
   patch: { title?: string; content?: string; category?: string | null },
 ) {
-  await requireDocumentAccess(actorId, documentId);
+  const { doc, access } = await requireDocumentAccess(actorId, documentId);
 
   const title = patch.title === undefined ? undefined : normalizeTitle(patch.title);
   const category =
@@ -165,11 +176,31 @@ export async function updateDocument(
     })
     .where(eq(documents.id, documentId))
     .returning();
+
+  void notifyTeamMembers({
+    teamId: access.project.teamId,
+    actorId,
+    type: "document_updated",
+    title: "文档已更新",
+    content: `文档《${updated.title}》发生了更新`,
+    linkUrl: `/projects/${doc.projectId}/docs/${documentId}`,
+    projectId: doc.projectId,
+  });
   return updated;
 }
 
 // 删除文档：项目内任一成员可删
 export async function deleteDocument(actorId: string, documentId: string) {
-  await requireDocumentAccess(actorId, documentId);
+  const { doc, access } = await requireDocumentAccess(actorId, documentId);
   await db.delete(documents).where(eq(documents.id, documentId));
+
+  void notifyTeamMembers({
+    teamId: access.project.teamId,
+    actorId,
+    type: "document_deleted",
+    title: "文档已删除",
+    content: `文档《${doc.title}》已被删除`,
+    linkUrl: `/projects/${doc.projectId}/docs`,
+    projectId: doc.projectId,
+  });
 }

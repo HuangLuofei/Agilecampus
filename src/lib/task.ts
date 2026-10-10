@@ -94,7 +94,7 @@ export async function createTask(
     })
     .returning();
 
-  void recordTaskEvent({
+  const createdEvent = await recordTaskEvent({
     taskId: task.id,
     actorId,
     actorType: opts?.actorType,
@@ -118,6 +118,8 @@ export async function createTask(
       title: "新任务已创建",
       content: `任务“${task.title}”已创建`,
       type: task.assigneeId ? "task_assigned" : "task_updated",
+      linkUrl: `/messages/changes/${createdEvent.id}`,
+      taskEventId: createdEvent.id,
     });
   }
   return task;
@@ -183,8 +185,9 @@ export async function updateTask(
       completionNote: updated.completionNote,
     },
   );
+  const eventIds: string[] = [];
   for (const change of changes) {
-    await recordTaskEvent({
+    const ev = await recordTaskEvent({
       taskId,
       actorId,
       actorType: opts?.actorType,
@@ -193,6 +196,7 @@ export async function updateTask(
       newValue: change.newValue,
       tx: opts?.tx,
     });
+    eventIds.push(ev.id);
   }
   if (
     task.title !== updated.title ||
@@ -227,12 +231,18 @@ export async function updateTask(
     // 完成：通知创建者(≠操作者)
     if (patch.status === "done" && task.status !== "done") void notifyTaskCompleted(updated, actorId);
     if (changes.length > 0) {
+      // 一次 update 可能记多条 event，通知链到主事件（changes[0]）
+      const primaryEventId = eventIds[0] ?? null;
       void notifyTaskParticipants({
         taskId,
         actorId,
         title: "任务已更新",
         content: `任务“${updated.title}”发生了新的变更`,
         type: patch.status === "done" ? "task_completed" : "task_updated",
+        linkUrl: primaryEventId ? `/messages/changes/${primaryEventId}` : null,
+        taskEventId: primaryEventId,
+        // 操作者本人也进列表（与公告一致，本人那条直接算已读），方便回看/评论自己的变更
+        includeActor: true,
       });
     }
   }
