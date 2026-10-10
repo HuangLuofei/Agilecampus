@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createTaskAction, type FormState } from "./actions";
 
 export function NewTaskForm({
@@ -9,13 +9,15 @@ export function NewTaskForm({
   milestones,
 }: {
   projectId: string;
-  members: { id: string; name: string }[];
+  members: { id: string; name: string; skillTags: string[] }[];
   milestones: { id: string; title: string }[];
 }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     createTaskAction,
     null,
   );
+  const [assigneeId, setAssigneeId] = useState("");
+  const selected = members.find((m) => m.id === assigneeId) ?? null;
 
   return (
     <form action={formAction} className="ac-card space-y-2 p-4">
@@ -24,11 +26,17 @@ export function NewTaskForm({
       <input name="title" placeholder="任务标题" className="ac-field" />
       <textarea name="description" placeholder="任务描述（可选）" rows={2} className="ac-field" />
       <div className="flex flex-wrap gap-2">
-        <select name="assigneeId" defaultValue="" className="ac-field w-auto text-sm">
+        <select
+          name="assigneeId"
+          value={assigneeId}
+          onChange={(e) => setAssigneeId(e.target.value)}
+          className="ac-field w-auto text-sm"
+        >
           <option value="">未分配</option>
           {members.map((m) => (
             <option key={m.id} value={m.id}>
               {m.name}
+              {m.skillTags.length > 0 ? `（${m.skillTags.join("/")}）` : ""}
             </option>
           ))}
         </select>
@@ -54,6 +62,20 @@ export function NewTaskForm({
           <input type="date" name="dueDate" className="ac-field w-auto text-sm" />
         </label>
       </div>
+      {selected && (
+        <p className="flex flex-wrap items-center gap-1 text-xs text-ink-soft">
+          <span>{selected.name} 的技能：</span>
+          {selected.skillTags.length > 0 ? (
+            selected.skillTags.map((t) => (
+              <span key={t} className="ac-badge bg-primary-soft text-primary">
+                {t}
+              </span>
+            ))
+          ) : (
+            <span className="text-ink-faint">该成员暂未填写技能标签</span>
+          )}
+        </p>
+      )}
       {state?.error && <p className="text-sm text-high">{state.error}</p>}
       <button disabled={pending} className="ac-btn px-3 py-2 text-sm">
         {pending ? "创建中…" : "创建任务"}

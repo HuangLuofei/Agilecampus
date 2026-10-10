@@ -5,6 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { hashPassword } from "./password";
 import { exchangeOAuthCode } from "./feishu";
 import { AppError, isUniqueViolation } from "./errors";
+import { normalizeSkillTags } from "./skill-tags";
 
 export async function createUser(input: {
   email: string;
@@ -92,4 +93,11 @@ export async function findOrCreateByFeishu(input: { openId: string; name: string
 export async function loginWithFeishuCode(code: string) {
   const { openId, name } = await exchangeOAuthCode(code);
   return findOrCreateByFeishu({ openId, name });
+}
+
+// 更新当前用户自报的技能标签（个人资料页）。清洗规则见 lib/skill-tags.ts。
+export async function updateMySkillTags(userId: string, tags: string[]) {
+  const normalized = normalizeSkillTags(tags);
+  await db.update(users).set({ skillTags: normalized }).where(eq(users.id, userId));
+  return normalized;
 }

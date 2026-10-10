@@ -12,7 +12,7 @@ import {
 import { LABEL_COLOR_CLASS } from "@/lib/board-columns";
 import type { BoardTask } from "./board";
 
-export type Option = { id: string; name: string };
+export type Option = { id: string; name: string; skillTags?: string[] };
 type TaskOption = { id: string; title: string };
 
 const PRIORITY_BADGE: Record<string, string> = {
@@ -166,6 +166,10 @@ function EditModal({
     null,
   );
 
+  // 负责人受控：据以展示其技能标签，供改派时参考分工
+  const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
+  const assignee = members.find((m) => m.id === assigneeId) ?? null;
+
   // 保存成功（action 回 { ok: true }）即关窗
   useEffect(() => {
     if (updateState && "ok" in updateState) onClose();
@@ -235,14 +239,33 @@ function EditModal({
 
           <div className="grid grid-cols-2 gap-2.5">
             <Field label="负责人">
-              <select name="assigneeId" defaultValue={task.assigneeId ?? ""} className="ac-field text-sm">
+              <select
+                name="assigneeId"
+                value={assigneeId}
+                onChange={(e) => setAssigneeId(e.target.value)}
+                className="ac-field text-sm"
+              >
                 <option value="">未分配</option>
                 {members.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
+                    {m.skillTags?.length ? `（${m.skillTags.join("/")}）` : ""}
                   </option>
                 ))}
               </select>
+              {assignee && (
+                <span className="flex flex-wrap items-center gap-1 text-xs text-ink-soft">
+                  {assignee.skillTags?.length ? (
+                    assignee.skillTags.map((t) => (
+                      <span key={t} className="ac-badge bg-primary-soft text-primary">
+                        {t}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-ink-faint">该成员暂未填写技能标签</span>
+                  )}
+                </span>
+              )}
             </Field>
             <Field label="里程碑">
               <select name="milestoneId" defaultValue={task.milestoneId ?? ""} className="ac-field text-sm">

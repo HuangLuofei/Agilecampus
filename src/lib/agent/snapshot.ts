@@ -39,10 +39,16 @@ export async function buildProjectSnapshot(actorId: string, projectId: string): 
     .filter(Boolean)
     .join("\n");
 
-  // 成员段恒保留：assigneeId 只能取自此处，且无 list_members 读工具可兜底
+  // 成员段恒保留：assigneeId 只能取自此处，且无 list_members 读工具可兜底。
+  // 附技能标签供模型参考分工（自报，仅供参考）。
   const memberBlock =
-    "\n\n## 成员（assigneeId 只能取此处的 id）\n" +
-    members.map((m) => `- ${m.name}｜${m.role}｜id=${m.id}`).join("\n");
+    "\n\n## 成员（assigneeId 只能取此处的 id；指派可参考其技能标签）\n" +
+    members
+      .map((m) => {
+        const skill = m.skillTags.length > 0 ? `｜技能 ${m.skillTags.join("/")}` : "";
+        return `- ${m.name}｜${m.role}${skill}｜id=${m.id}`;
+      })
+      .join("\n");
 
   const milestoneBlock =
     milestones.length > 0

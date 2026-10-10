@@ -115,3 +115,13 @@
   `export DEEPSEEK_API_KEY=sk-xxx && npx dotenv -e .env.test -- npx vitest run tests/agent-live.test.ts`
   （注：vitest 4 已无 `--include` 旗号，勿用）
 - `tests/agent-drafts.test.ts` 在全量并行下偶发 5s 超时（单跑 852ms 即捷）——共享测试库之粮道拥塞，未调 `testTimeout`
+
+## 图九（成员技能标签）简化备案
+- 标签为自由文本数组直挂 `users.skill_tags`（无预设标签表、无团队级管理）；预设库硬编码于 `lib/skill-tags.ts`，日后要增删须改代码
+- 超限（>10 个或单个 >12 字）在保存时由 lib 抛 AppError 转文案；编辑器未做添加时的实时拦截（第 11 个点亮后要等保存才报错）
+- 负责人选择沿用原生 `<select>`：option 文本拼接标签（标签多时下拉文案长），选中后另以徽章预览——未做富下拉组件
+- `listTeamMembers` 现返回 skillTags，FilterBar / ChatPanel / draft-cards / board-columns 收到多余字段但未使用（结构类型静默兼容）
+- AI 快照成员段附技能标签，prompt 仅提示「指派可参考」，未强制模型遵循；模型可能无视标签自行指派
+- 标签展示于成员管理页与任务表单；任务卡片常态不展示（仅编辑弹窗），避免看板卡片过载
+- router cache 下改标签后其他页面或短暂 stale（动态页默认 staleTime 0，实际影响极小）
+

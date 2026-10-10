@@ -63,7 +63,12 @@ export async function requireTeamRole(
 // 无权限前置：调用方须已校验访问权（如 getProjectForUser / requireTeamRole）后再调用
 export async function listTeamMembers(teamId: string) {
   return db
-    .select({ id: users.id, name: users.name, role: teamMembers.role })
+    .select({
+      id: users.id,
+      name: users.name,
+      role: teamMembers.role,
+      skillTags: users.skillTags,
+    })
     .from(teamMembers)
     .innerJoin(users, eq(teamMembers.userId, users.id))
     .where(eq(teamMembers.teamId, teamId));

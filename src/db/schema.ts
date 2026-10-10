@@ -13,6 +13,7 @@ import {
   boolean,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 export const notificationTypeEnum = pgEnum("notification_type", [
   "task_assigned",
@@ -52,6 +53,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
+  // 成员自报技能标签（自由文本数组，分工参考，非权限）；清洗/限量在 lib/skill-tags.ts
+  skillTags: text("skill_tags").array().notNull().default(sql`'{}'::text[]`),
   // 飞书绑定（一对一，可空=未绑定）：open_id 为应用内用户唯一标识，发私信用之
   feishuOpenId: text("feishu_open_id").unique(),
   feishuName: text("feishu_name"),

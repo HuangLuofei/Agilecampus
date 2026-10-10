@@ -27,7 +27,13 @@ export default async function MembersPage({
   if (!team) notFound();
 
   const members = await db
-    .select({ userId: users.id, name: users.name, email: users.email, role: teamMembers.role })
+    .select({
+      userId: users.id,
+      name: users.name,
+      email: users.email,
+      role: teamMembers.role,
+      skillTags: users.skillTags,
+    })
     .from(teamMembers)
     .innerJoin(users, eq(teamMembers.userId, users.id))
     .where(eq(teamMembers.teamId, teamId));
@@ -40,9 +46,20 @@ export default async function MembersPage({
       <ul className="space-y-2">
         {members.map((m) => (
           <li key={m.userId} className="ac-card flex items-center justify-between p-4">
-            <span className="text-ink">
-              {m.name} <span className="text-xs text-ink-soft">{m.email}</span>
-            </span>
+            <div>
+              <span className="text-ink">
+                {m.name} <span className="text-xs text-ink-soft">{m.email}</span>
+              </span>
+              {m.skillTags.length > 0 && (
+                <p className="mt-1 flex flex-wrap gap-1">
+                  {m.skillTags.map((t) => (
+                    <span key={t} className="ac-badge bg-primary-soft text-primary">
+                      {t}
+                    </span>
+                  ))}
+                </p>
+              )}
+            </div>
             {isAdmin && m.userId !== session.user.id ? (
               <form action={updateRoleAction} className="flex items-center gap-2">
                 <input type="hidden" name="teamId" value={teamId} />
