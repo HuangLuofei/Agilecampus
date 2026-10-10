@@ -306,6 +306,31 @@ export const taskLabels = pgTable(
 
 // ==================== 本项目新增 P0 模块 ====================
 
+// 公告表：一条公告 = 1 行；发布时按团队成员 fan-out 成 N 条 notifications（见 lib/announcement.ts）
+export const announcements = pgTable('announcements', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  projectId: uuid('project_id').notNull().references(() => projects.id, { onDelete: 'cascade' }),
+  authorId: uuid('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("announcements_project_created_idx").on(t.projectId, t.createdAt),
+]);
+
+// 公告评论表：镜像 task_comments（软删 deletedAt，作者或管理员/老师可删）
+export const announcementComments = pgTable('announcement_comments', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  announcementId: uuid('announcement_id').notNull().references(() => announcements.id, { onDelete: 'cascade' }),
+  authorId: uuid('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  content: text('content').notNull(),
+  deletedAt: timestamp('deleted_at', { withTimezone: true }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  index("announcement_comments_announcement_created_idx").on(t.announcementId, t.createdAt),
+]);
+
 // 1. 站内通知表
 export const notifications = pgTable('notifications', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -317,11 +342,14 @@ export const notifications = pgTable('notifications', {
   // 公告用：发布者 + 对应项目（事件型通知为 null）
   actorId: uuid('actor_id').references(() => users.id, { onDelete: 'set null' }),
   projectId: uuid('project_id').references(() => projects.id, { onDelete: 'cascade' }),
+  // 公告用：关联公告实体（同一次发布 fan-out 出的 N 行共享此 id）；事件型通知为 null
+  announcementId: uuid('announcement_id').references(() => announcements.id, { onDelete: 'cascade' }),
   isRead: boolean('is_read').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   index("notifications_user_created_idx").on(t.userId, t.createdAt),
   index("notifications_user_unread_idx").on(t.userId, t.isRead),
+  index("notifications_announcement_idx").on(t.announcementId),
 ]);
 
 // 2. 任务评论表
