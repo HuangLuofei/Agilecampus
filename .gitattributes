@@ -1,0 +1,5 @@
+# 禁止行尾转换，保持字节原样。
+# 本项目沿用「diff -rq 对比原始 zip 定位改动」的排查方法，
+# 而 Git for Windows 默认的 core.autocrlf=true 会在 checkout 时
+# 把 LF 写成 CRLF，导致该对比把所有文件误报为已改动。
+* -text
