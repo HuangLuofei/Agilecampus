@@ -12,6 +12,7 @@ import {
 import { LABEL_COLOR_CLASS } from "@/lib/board-columns";
 import { classifyDue, todayStartMs } from "@/lib/due";
 import type { BoardTask } from "./board";
+import { TaskAssets } from "./assets/task-assets";
 
 export type Option = { id: string; name: string; skillTags?: string[] };
 type TaskOption = { id: string; title: string };
@@ -368,6 +369,9 @@ function EditModal({
             </button>
           </div>
         </form>
+
+        {/* 挂载资产：绑定项目已有资产或上传新资产（写入 assets.taskId） */}
+        <TaskAssets projectId={projectId} taskId={task.id} />
 
         <form
           action={deleteFormAction}

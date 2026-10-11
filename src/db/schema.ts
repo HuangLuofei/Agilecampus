@@ -11,6 +11,7 @@ import {
   index,
   jsonb,
   boolean,
+  bigint,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -458,3 +459,50 @@ export const chatMessages = pgTable('chat_messages', {
 }, (t) => [
   index("chat_messages_room_created_idx").on(t.roomId, t.createdAt),
 ]);
+
+// ==================== 资产管理模块（assets） ====================
+
+// 资产类型：file=上传文件（url 存文件地址），link=外部链接（url 存链接地址）
+export const assetTypeEnum = pgEnum("asset_type", ["file", "link"]);
+export type AssetType = (typeof assetTypeEnum.enumValues)[number];
+
+// 项目资产：挂在 project 下。权限沿用团队可见性——asset → project → team 链条，
+// 同团队所有人可见本团队所有项目资产、非团队成员禁止访问；故不另设 team_id 字段。
+// taskId / docId 可空：一个资产至多关联一个任务、一个文档；被关联对象删除时置 null，资产保留。
+export const assets = pgTable(
+  "assets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // 归属项目（权限锚点，经 project.teamId 推到团队）；删项目级联删资产
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    // 关联任务（可空）：任务删则解除关联，资产保留
+    taskId: uuid("task_id").references(() => tasks.id, { onDelete: "set null" }),
+    // 关联文档（可空）：文档删则解除关联，资产保留
+    docId: uuid("doc_id").references(() => documents.id, { onDelete: "set null" }),
+    // 上传人：用户删除时置 null，资产保留（团队共有资源）
+    uploadUserId: uuid("upload_user_id").references(() => users.id, { onDelete: "set null" }),
+    // 资产名：file=文件名，link=链接标题
+    name: text("name").notNull(),
+    // 描述（选填）
+    description: text("description"),
+    // file | link
+    assetType: assetTypeEnum("asset_type").notNull(),
+    // 文件地址（file 型）或外部链接（link 型）
+    url: text("url").notNull(),
+    // [file] MIME 类型（application/pdf、image/png…），检测不到可为 null
+    fileMime: text("file_mime"),
+    // [file] 字节数（int8，mode:number；单文件 < 2^53 字节足够安全）
+    fileSize: bigint("file_size", { mode: "number" }),
+    // 归档锁定：归档后不再展示于常规列表、禁止再编辑/删除/绑定
+    isArchived: boolean("is_archived").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("assets_project_idx").on(t.projectId),
+    index("assets_task_idx").on(t.taskId),
+    index("assets_doc_idx").on(t.docId),
+  ],
+);

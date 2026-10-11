@@ -1,7 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useRef } from "react";
 import { updateDocumentAction, type FormState } from "./actions";
+import { DocAssetToolbar } from "../assets/doc-assets";
+
+// 资产联动：编辑器内上传的文件经 /api/assets 自动存入项目资产库（绑定 docId）；
+// 删除文档仅解除 assets.docId 关联（外键 onDelete: set null），不删除资产文件。
 
 export function DocEditor({
   projectId,
@@ -20,6 +24,19 @@ export function DocEditor({
     updateDocumentAction,
     null,
   );
+  const contentRef = useRef<HTMLTextAreaElement>(null);
+
+  // 在光标处插入 Markdown 片段（上传成功 / 选择资产后调用）
+  function insertSnippet(snippet: string) {
+    const el = contentRef.current;
+    if (!el) return;
+    const start = el.selectionStart ?? el.value.length;
+    const end = el.selectionEnd ?? el.value.length;
+    el.value = el.value.slice(0, start) + snippet + el.value.slice(end);
+    const pos = start + snippet.length;
+    el.setSelectionRange(pos, pos);
+    el.focus();
+  }
 
   return (
     <form action={formAction} className="space-y-4">
@@ -38,8 +55,16 @@ export function DocEditor({
       </div>
 
       <label className="block space-y-1">
-        <span className="text-xs font-medium text-ink-soft">正文（支持 Markdown）</span>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-ink-soft">正文（支持 Markdown）</span>
+          <DocAssetToolbar
+            projectId={projectId}
+            documentId={documentId}
+            onInsert={insertSnippet}
+          />
+        </div>
         <textarea
+          ref={contentRef}
           name="content"
           defaultValue={initialContent}
           rows={16}
