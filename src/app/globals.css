@@ -22,6 +22,11 @@
   --color-primary-soft: #eef3fe;
   --color-primary-ring: #c4d5ff;
 
+  /* 导航 · 厦大蓝（左侧导航栏专用） */
+  --color-navy: #003c88;
+  --color-navy-deep: #002f66;
+  --color-navy-bright: #004a9e;
+
   /* 点缀 · 警示橙 */
   --color-accent: #ff8800;
   --color-accent-soft: #fff3e5;
