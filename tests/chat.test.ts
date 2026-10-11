@@ -6,11 +6,30 @@ import {
   getOrCreateDmRoom,
   getOrCreateGroupRoom,
   listRoomMessages,
+  listRoomMembers,
+  getRoomMeta,
   sendMessage,
   markRoomRead,
   countUnreadChats,
 } from "@/lib/chat";
+import { listNotifications } from "@/lib/notification";
 import { resetDb } from "./helpers";
+
+type Notif = Awaited<ReturnType<typeof listNotifications>>[number];
+
+async function waitForNotif(
+  userId: string,
+  predicate: (n: Notif) => boolean,
+  maxMs = 2000,
+): Promise<Notif> {
+  const start = Date.now();
+  for (;;) {
+    const hit = (await listNotifications(userId)).find(predicate);
+    if (hit) return hit;
+    if (Date.now() - start > maxMs) throw new Error("通知未在预期时间内出现");
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 
 async function makeUser(email: string) {
   return createUser({ email, password: "password123", name: email.split("@")[0] });
@@ -122,5 +141,58 @@ describe("markRoomRead / countUnreadChats", () => {
     await sendMessage(teacher.id, r2.id, "C");
     await sendMessage(owner.id, r2.id, "我的回复"); // 自己的不计
     expect(await countUnreadChats(owner.id)).toBe(3);
+  });
+});
+
+describe("listRoomMembers / getRoomMeta", () => {
+  beforeEach(resetDb);
+
+  it("群聊成员 = 团队全员", async () => {
+    const { owner, project } = await scene();
+    const room = await getOrCreateGroupRoom(owner.id, project.id);
+    const members = await listRoomMembers(owner.id, room.id);
+    expect(members.map((m) => m.name).sort()).toEqual(["owner", "student", "teacher"]);
+  });
+
+  it("私聊成员 = 双方", async () => {
+    const { owner, student } = await scene();
+    const room = await getOrCreateDmRoom(owner.id, student.id);
+    const members = await listRoomMembers(owner.id, room.id);
+    expect(members.map((m) => m.name).sort()).toEqual(["owner", "student"]);
+  });
+
+  it("getRoomMeta：群聊标题与类型", async () => {
+    const { owner, project } = await scene();
+    const room = await getOrCreateGroupRoom(owner.id, project.id);
+    const meta = await getRoomMeta(owner.id, room.id);
+    expect(meta.type).toBe("group");
+    expect(meta.title).toBe("项目A-东吴实验室");
+  });
+});
+
+describe("群聊 @ 艾特通知", () => {
+  beforeEach(resetDb);
+
+  it("群聊中 @ 成员 → 该成员收到 chat_mentioned 通知", async () => {
+    const { owner, student, project } = await scene();
+    const room = await getOrCreateGroupRoom(owner.id, project.id);
+    await sendMessage(owner.id, room.id, "@student 请看一下这个任务");
+
+    const hit = await waitForNotif(student.id, (n) => n.type === "chat_mentioned");
+    expect(hit.linkUrl).toBe(`/messages?tab=chat&room=${room.id}`);
+    expect(hit.content).toContain("@ 了你");
+    expect(hit.actorName).toBe("owner");
+    expect(hit.isRead).toBe(false);
+  });
+
+  it("@ 自己 / @ 不存在的人不发通知", async () => {
+    const { owner, project } = await scene();
+    const room = await getOrCreateGroupRoom(owner.id, project.id);
+    await sendMessage(owner.id, room.id, "@owner 自我提醒 @nobody 没有这个人");
+
+    // 等 fire-and-forget 完成（若有通知也该落库了）
+    await new Promise((r) => setTimeout(r, 300));
+    const notifs = await listNotifications(owner.id);
+    expect(notifs.filter((n) => n.type === "chat_mentioned")).toHaveLength(0);
   });
 });

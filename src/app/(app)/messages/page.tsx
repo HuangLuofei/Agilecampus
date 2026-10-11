@@ -15,14 +15,20 @@ export default async function MessagesPage({
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const tab = (await searchParams).tab === "notifications" ? "notifications" : "chat";
+  const params = await searchParams;
+  const tab = params.tab === "notifications" ? "notifications" : "chat";
+  const roomId = typeof params.room === "string" ? params.room : null;
 
   return (
     <main className="mx-auto max-w-5xl py-8">
       <TabBar active={tab} />
 
       {tab === "chat" ? (
-        <ChatTab userId={session.user.id} userName={session.user.name ?? ""} />
+        <ChatTab
+          userId={session.user.id}
+          userName={session.user.name ?? ""}
+          initialRoomId={roomId}
+        />
       ) : (
         <NotificationsTab userId={session.user.id} />
       )}
@@ -55,9 +61,19 @@ function TabBar({ active }: { active: "chat" | "notifications" }) {
   );
 }
 
-async function ChatTab({ userId, userName }: { userId: string; userName: string }) {
+async function ChatTab({
+  userId,
+  userName,
+  initialRoomId,
+}: {
+  userId: string;
+  userName: string;
+  initialRoomId?: string | null;
+}) {
   const overview = await listMyChatOverview(userId);
-  return <ChatApp userId={userId} userName={userName} initial={overview} />;
+  return (
+    <ChatApp userId={userId} userName={userName} initial={overview} initialRoomId={initialRoomId} />
+  );
 }
 
 async function NotificationsTab({ userId }: { userId: string }) {

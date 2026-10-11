@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { AppError, ForbiddenError, isUniqueViolation } from "./errors";
 import { getTeamMembership } from "./team";
+import { createNotification } from "./notification";
 
 // 会话访问收敛点：DM 校验是双方之一；群聊校验是项目所属团队成员
 async function requireRoomAccess(actorId: string, roomId: string) {
@@ -245,7 +246,48 @@ export async function listRoomMessages(actorId: string, roomId: string) {
   return rows.map((r) => ({ ...r, mine: r.senderId === actorId }));
 }
 
-// 发消息：校验访问 + 内容非空，刷新会话活跃时间
+// 会话元信息（深链自动打开用）：标题 = 群聊「项目-团队」/ 私聊对方名
+export async function getRoomMeta(actorId: string, roomId: string) {
+  const { room, kind } = await requireRoomAccess(actorId, roomId);
+  if (kind === "dm") {
+    const otherId = room.dmUserAId === actorId ? room.dmUserBId : room.dmUserAId;
+    const [other] = otherId
+      ? await db.select({ name: users.name }).from(users).where(eq(users.id, otherId))
+      : [];
+    return { id: room.id, type: "dm" as const, title: other?.name ?? "私聊" };
+  }
+  const [project] = await db
+    .select({ name: projects.name, teamName: teams.name })
+    .from(projects)
+    .innerJoin(teams, eq(projects.teamId, teams.id))
+    .where(eq(projects.id, room.projectId!));
+  return {
+    id: room.id,
+    type: "group" as const,
+    title: `${project?.name ?? "?"}-${project?.teamName ?? "?"}`,
+  };
+}
+
+// 会话成员：群聊 = 项目团队全员；私聊 = 双方。供成员面板 / @ 艾特解析
+export async function listRoomMembers(actorId: string, roomId: string) {
+  const { room, kind } = await requireRoomAccess(actorId, roomId);
+  if (kind === "dm") {
+    const ids = [room.dmUserAId, room.dmUserBId].filter((x): x is string => !!x);
+    return db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, ids));
+  }
+  const [project] = await db
+    .select({ teamId: projects.teamId })
+    .from(projects)
+    .where(eq(projects.id, room.projectId!));
+  if (!project) return [];
+  return db
+    .select({ id: users.id, name: users.name })
+    .from(teamMembers)
+    .innerJoin(users, eq(teamMembers.userId, users.id))
+    .where(eq(teamMembers.teamId, project.teamId));
+}
+
+// 发消息：校验访问 + 内容非空，刷新会话活跃时间；解析 @ 艾特并通知被提及成员
 export async function sendMessage(actorId: string, roomId: string, content: string) {
   await requireRoomAccess(actorId, roomId);
   const text = content.trim();
@@ -256,6 +298,26 @@ export async function sendMessage(actorId: string, roomId: string, content: stri
     .values({ roomId, senderId: actorId, content: text })
     .returning();
   await db.update(chatRooms).set({ updatedAt: new Date() }).where(eq(chatRooms.id, roomId));
+
+  // @ 艾特通知：内容里 @名字 → 命中成员即发通知（排除自己；重名只通知首个匹配）
+  const [sender] = await db.select({ name: users.name }).from(users).where(eq(users.id, actorId));
+  const mentionedNames = [...new Set([...text.matchAll(/@([^\s@]+)/g)].map((m) => m[1]))];
+  if (mentionedNames.length > 0) {
+    const members = await listRoomMembers(actorId, roomId);
+    for (const name of mentionedNames) {
+      const target = members.find((m) => m.id !== actorId && m.name === name);
+      if (!target) continue;
+      void createNotification({
+        userId: target.id,
+        title: "群聊提及",
+        content: `${sender?.name ?? "有人"} 在群聊中 @ 了你`,
+        type: "chat_mentioned",
+        linkUrl: `/messages?tab=chat&room=${roomId}`,
+        actorId,
+      }).catch(() => {});
+    }
+  }
+
   return message;
 }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { listRoomMessages, listMyRooms } from "@/lib/chat";
+import { listRoomMessages, listRoomMembers, listMyRooms, getRoomMeta } from "@/lib/chat";
 import { AppError, ForbiddenError } from "@/lib/errors";
 
 // 轮询：拉取某会话消息 + 全量未读（供侧栏红点）
@@ -15,11 +15,13 @@ export async function GET(req: Request) {
   }
 
   try {
-    const [messages, { groupRooms, dmRooms, unreadTotal }] = await Promise.all([
+    const [messages, room, members, { groupRooms, dmRooms, unreadTotal }] = await Promise.all([
       listRoomMessages(session.user.id, roomId),
+      getRoomMeta(session.user.id, roomId),
+      listRoomMembers(session.user.id, roomId),
       listMyRooms(session.user.id),
     ]);
-    return NextResponse.json({ messages, groupRooms, dmRooms, unreadTotal });
+    return NextResponse.json({ messages, room, members, groupRooms, dmRooms, unreadTotal });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: "没有权限" }, { status: 403 });
     if (e instanceof AppError) return NextResponse.json({ error: e.message }, { status: 400 });

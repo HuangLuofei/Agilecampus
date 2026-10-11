@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar } from "./avatar";
 
 export type ChatOverview = {
@@ -19,6 +19,10 @@ type Message = {
   mine: boolean;
 };
 
+type Member = { id: string; name: string };
+
+type Room = { roomId: string; title: string; type: "group" | "dm" };
+
 const POLL_MS = 4000;
 
 function fmtTime(iso: string): string {
@@ -27,23 +31,50 @@ function fmtTime(iso: string): string {
   return `${d.getMonth() + 1}/${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
+// 渲染消息正文：把 @名字 高亮（群聊艾特；@word 一律标色，中文名/邮箱均适用）
+function renderContent(content: string) {
+  return content.split(/(@[^\s@]+)/g).map((part, i) =>
+    part.startsWith("@") ? (
+      <span key={i} className="font-medium text-primary">
+        {part}
+      </span>
+    ) : (
+      <span key={i}>{part}</span>
+    ),
+  );
+}
+
+// 解析输入末尾正在进行的 @ 艾特：返回 @ 的位置与后续已输入片段；无则 null
+function parseMention(value: string): { start: number; query: string } | null {
+  const at = value.lastIndexOf("@");
+  if (at < 0) return null;
+  const rest = value.slice(at + 1);
+  if (/\s/.test(rest)) return null; // @ 后已接空格 = 已完成的艾特，不再弹窗
+  return { start: at, query: rest };
+}
+
 export function ChatApp({
   userId,
   userName,
   initial,
+  initialRoomId,
 }: {
   userId: string;
   userName: string;
   initial: ChatOverview;
+  initialRoomId?: string | null;
 }) {
   const [groupRooms, setGroupRooms] = useState(initial.groupRooms);
   const [dmRooms, setDmRooms] = useState(initial.dmRooms);
-  const [selected, setSelected] = useState<{ roomId: string; title: string } | null>(null);
+  const [selected, setSelected] = useState<Room | null>(null);
+  const [members, setMembers] = useState<Member[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
+  const [mention, setMention] = useState<{ start: number; query: string } | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   function clearUnread(roomId: string) {
     const zero = (map: Record<string, { roomId: string; unread: number }>) => {
@@ -55,19 +86,45 @@ export function ChatApp({
     setDmRooms(zero);
   }
 
-  function selectRoom(roomId: string, title: string) {
-    setSelected({ roomId, title });
+  function selectRoom(room: Room) {
+    setSelected(room);
     setMessages([]);
+    setMembers([]);
+    setMention(null);
     setError(null);
-    clearUnread(roomId);
+    clearUnread(room.roomId);
     void fetch("/api/messages/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ roomId }),
+      body: JSON.stringify({ roomId: room.roomId }),
     }).catch(() => {});
   }
 
-  // 选中会话后：立即拉取 + 每 4s 轮询（刷新消息与侧栏未读红点）
+  // 深链：从通知「群聊提及」跳来时按 roomId 自动打开对应会话
+  useEffect(() => {
+    if (!initialRoomId || selected) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/messages?roomId=${encodeURIComponent(initialRoomId)}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (data.room) {
+          setSelected({ roomId: data.room.id, title: data.room.title, type: data.room.type });
+          setMembers(data.members ?? []);
+          clearUnread(data.room.id);
+        }
+      } catch {
+        /* 忽略，用户可手动选择 */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialRoomId]);
+
+  // 选中会话后：立即拉取 + 每 4s 轮询（刷新消息、成员与侧栏未读红点）
   useEffect(() => {
     if (!selected) return;
     let cancelled = false;
@@ -77,6 +134,7 @@ export function ChatApp({
         if (!res.ok || cancelled) return;
         const data = await res.json();
         setMessages(data.messages);
+        setMembers(data.members ?? []);
         setGroupRooms(data.groupRooms);
         setDmRooms(data.dmRooms);
       } catch {
@@ -116,7 +174,7 @@ export function ChatApp({
         return;
       }
     }
-    selectRoom(roomId, groupName);
+    selectRoom({ roomId, title: groupName, type: "group" });
   }
 
   async function openDm(memberId: string, memberName: string) {
@@ -140,13 +198,14 @@ export function ChatApp({
         return;
       }
     }
-    selectRoom(roomId, memberName);
+    selectRoom({ roomId, title: memberName, type: "dm" });
   }
 
   async function send() {
     const text = input.trim();
     if (!text || pending || !selected) return;
     setInput("");
+    setMention(null);
     setPending(true);
     setError(null);
 
@@ -179,6 +238,32 @@ export function ChatApp({
       setPending(false);
     }
   }
+
+  function onInputChange(value: string) {
+    setInput(value);
+    setMention(parseMention(value));
+  }
+
+  function applyMention(member: Member) {
+    if (!mention) return;
+    const next =
+      input.slice(0, mention.start) +
+      `@${member.name} ` +
+      input.slice(mention.start + 1 + mention.query.length);
+    setInput(next);
+    setMention(null);
+    inputRef.current?.focus();
+  }
+
+  const mentionMatches = useMemo(() => {
+    if (!mention) return [];
+    const q = mention.query.toLowerCase();
+    return members
+      .filter((m) => m.id !== userId && (q === "" || m.name.toLowerCase().includes(q)))
+      .slice(0, 6);
+  }, [mention, members, userId]);
+
+  const otherMembers = members.filter((m) => m.id !== userId);
 
   return (
     <div className="flex gap-4">
@@ -222,8 +307,13 @@ export function ChatApp({
       <section className="flex min-h-[70vh] flex-1 flex-col ac-card overflow-hidden">
         {selected ? (
           <>
-            <header className="border-b border-line px-4 py-3 font-display text-base font-semibold text-ink">
-              {selected.title}
+            <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+              <span className="font-display text-base font-semibold text-ink">
+                {selected.title}
+              </span>
+              {selected.type === "group" && (
+                <span className="text-xs text-ink-faint">群成员 {otherMembers.length} 人</span>
+              )}
             </header>
             <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-4">
               {messages.length === 0 && (
@@ -231,13 +321,24 @@ export function ChatApp({
               )}
               {messages.map((m) => (
                 <div key={m.id} className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-sunken/60">
-                  <Avatar name={m.senderName} size="sm" />
+                  {selected.type === "group" && !m.mine ? (
+                    <button
+                      type="button"
+                      onClick={() => openDm(m.senderId, m.senderName)}
+                      title={`与 ${m.senderName} 私聊`}
+                      className="shrink-0"
+                    >
+                      <Avatar name={m.senderName} size="sm" />
+                    </button>
+                  ) : (
+                    <Avatar name={m.senderName} size="sm" />
+                  )}
                   <div className="min-w-0">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-medium text-ink">{m.senderName}</span>
                       <span className="text-xs text-ink-faint">{fmtTime(m.createdAt)}</span>
                     </div>
-                    <p className="whitespace-pre-wrap text-sm text-ink">{m.content}</p>
+                    <p className="whitespace-pre-wrap text-sm text-ink">{renderContent(m.content)}</p>
                   </div>
                 </div>
               ))}
@@ -248,12 +349,28 @@ export function ChatApp({
                 e.preventDefault();
                 void send();
               }}
-              className="flex gap-2 border-t border-line p-3"
+              className="relative flex gap-2 border-t border-line p-3"
             >
+              {mention && mentionMatches.length > 0 && (
+                <div className="absolute bottom-full left-3 mb-1 w-56 overflow-hidden rounded-field border border-line bg-surface shadow-lg">
+                  {mentionMatches.map((m) => (
+                    <button
+                      key={m.id}
+                      type="button"
+                      onClick={() => applyMention(m)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-ink hover:bg-primary-soft"
+                    >
+                      <Avatar name={m.name} size="sm" />
+                      <span className="truncate">{m.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <input
+                ref={inputRef}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="输入消息…"
+                onChange={(e) => onInputChange(e.target.value)}
+                placeholder="输入消息，@ 可艾特成员…"
                 className="ac-field flex-1 text-sm"
               />
               <button disabled={pending || !input.trim()} className="ac-btn">
@@ -267,6 +384,31 @@ export function ChatApp({
           </div>
         )}
       </section>
+
+      {selected?.type === "group" && (
+        <aside className="w-48 shrink-0 space-y-2">
+          <h2 className="text-sm font-semibold text-ink">群成员</h2>
+          {otherMembers.length === 0 ? (
+            <p className="text-xs text-ink-faint">暂无成员</p>
+          ) : (
+            <ul className="space-y-1">
+              {otherMembers.map((m) => (
+                <li key={m.id}>
+                  <button
+                    type="button"
+                    onClick={() => openDm(m.id, m.name)}
+                    title={`与 ${m.name} 私聊`}
+                    className="flex w-full items-center gap-2 rounded-field px-2 py-1.5 text-left text-sm text-ink transition-colors hover:bg-primary-soft"
+                  >
+                    <Avatar name={m.name} size="sm" />
+                    <span className="truncate">{m.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+      )}
     </div>
   );
 }

@@ -32,6 +32,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "resource_ended",
   "task_due_soon",
   "asset_created",
+  "chat_mentioned",
 ]);
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
