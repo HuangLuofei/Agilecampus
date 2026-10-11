@@ -15,7 +15,6 @@ export function TaskAssets({ projectId, taskId }: { projectId: string; taskId: s
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
       const res = await fetch(`/api/assets?projectId=${encodeURIComponent(projectId)}`);
       const data = await res.json().catch(() => ({}));
@@ -33,8 +32,30 @@ export function TaskAssets({ projectId, taskId }: { projectId: string; taskId: s
   }, [projectId, taskId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/assets?projectId=${encodeURIComponent(projectId)}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(data.error ?? "加载资产失败");
+          setAssets([]);
+          return;
+        }
+        const all: AssetItem[] = Array.isArray(data.assets) ? data.assets : [];
+        setAssets(all.filter((a) => a.taskId === taskId));
+      } catch {
+        if (!cancelled) {
+          setError("网络异常，请重试");
+          setAssets([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, taskId]);
 
   async function bind(asset: AssetItem) {
     setPickerOpen(false);

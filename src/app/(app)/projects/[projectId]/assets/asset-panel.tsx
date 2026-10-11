@@ -31,7 +31,6 @@ export function AssetPanel({
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
-    setError(null);
     try {
       const res = await fetch(`/api/assets?projectId=${encodeURIComponent(projectId)}`);
       const data = await res.json().catch(() => ({}));
@@ -48,8 +47,29 @@ export function AssetPanel({
   }, [projectId]);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/assets?projectId=${encodeURIComponent(projectId)}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) {
+          setError(data.error ?? "加载资产失败");
+          setAssets([]);
+          return;
+        }
+        setAssets(Array.isArray(data.assets) ? data.assets : []);
+      } catch {
+        if (!cancelled) {
+          setError("网络异常，请重试");
+          setAssets([]);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   async function create(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
