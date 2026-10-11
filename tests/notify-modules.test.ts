@@ -4,6 +4,7 @@ import { createTeam, joinTeam } from "@/lib/team";
 import { createProject } from "@/lib/project";
 import { createDocument, deleteDocument, updateDocument } from "@/lib/document";
 import { createResourceUsage, endResourceUsage } from "@/lib/resource";
+import { createAsset } from "@/lib/asset";
 import { listNotifications } from "@/lib/notification";
 import { resetDb } from "./helpers";
 
@@ -115,6 +116,42 @@ describe("资源占用通知", () => {
       startTime: new Date(),
     });
     await waitForNotif(owner.id, (i) => i.type === "resource_logged");
+    expect(await listNotifications(outsider.id)).toHaveLength(0);
+  });
+});
+
+describe("资产新增通知", () => {
+  beforeEach(resetDb);
+
+  it("新建资产 → 团队全员收到，linkUrl 指向资产页，操作者本人已读", async () => {
+    const { owner, member, project } = await scene();
+    await createAsset(member.id, {
+      projectId: project.id,
+      name: "需求说明书",
+      assetType: "link",
+      url: "https://example.com/spec",
+    });
+
+    const n = await waitForNotif(owner.id, (i) => i.type === "asset_created");
+    expect(n.linkUrl).toBe(`/projects/${project.id}/assets`);
+    expect(n.content).toBe("资产《需求说明书》已上传");
+    expect(n.actorName).toBe("member");
+    expect(n.projectName).toBe("项目A");
+    expect(n.isRead).toBe(false);
+
+    const own = await waitForNotif(member.id, (i) => i.type === "asset_created");
+    expect(own.isRead).toBe(true);
+  });
+
+  it("非团队成员收不到资产通知", async () => {
+    const { owner, member, outsider, project } = await scene();
+    await createAsset(member.id, {
+      projectId: project.id,
+      name: "x",
+      assetType: "link",
+      url: "https://example.com/x",
+    });
+    await waitForNotif(owner.id, (i) => i.type === "asset_created");
     expect(await listNotifications(outsider.id)).toHaveLength(0);
   });
 });

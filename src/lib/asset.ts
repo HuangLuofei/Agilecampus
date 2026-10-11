@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { assets, documents, tasks, users, type AssetType } from "@/db/schema";
 import { AppError, ForbiddenError } from "./errors";
 import { getProjectForUser } from "./project";
+import { notifyTeamMembers } from "./notification";
 
 // 上传目录：开发阶段落 public/，经 /uploads/<name> 直取；生产须换对象存储（public 在 standalone 构建时静态复制）
 const UPLOAD_DIR = "uploads";
@@ -98,7 +99,7 @@ export interface CreateAssetInput {
 }
 
 export async function createAsset(actorId: string, input: CreateAssetInput) {
-  await requireProjectAccess(actorId, input.projectId);
+  const access = await requireProjectAccess(actorId, input.projectId);
   const name = normalizeName(input.name);
 
   let url = input.url?.trim() || undefined;
@@ -136,6 +137,18 @@ export async function createAsset(actorId: string, input: CreateAssetInput) {
       uploadUserId: actorId,
     })
     .returning();
+
+  // 新建资产（上传文件/添加链接）即通知项目团队，供成员知悉新成果
+  void notifyTeamMembers({
+    teamId: access.project.teamId,
+    actorId,
+    type: "asset_created",
+    title: "新资产",
+    content: `资产《${name}》已上传`,
+    linkUrl: `/projects/${input.projectId}/assets`,
+    projectId: input.projectId,
+  });
+
   return asset;
 }
 

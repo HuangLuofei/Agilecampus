@@ -21,6 +21,7 @@ const TYPE_LABEL: Record<string, string> = {
   resource_logged: "资源登记",
   resource_ended: "资源结束",
   task_due_soon: "到期提醒",
+  asset_created: "新资产",
 };
 
 // 这些类型的通知在副标题里展示操作者（公告另走「发布者」）
@@ -30,6 +31,7 @@ const SHOW_ACTOR = new Set([
   "document_deleted",
   "resource_logged",
   "resource_ended",
+  "asset_created",
 ]);
 
 type Items = Awaited<ReturnType<typeof listNotifications>>;
