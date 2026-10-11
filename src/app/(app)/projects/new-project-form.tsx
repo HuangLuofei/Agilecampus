@@ -1,13 +1,24 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createProjectAction, type FormState } from "../teams/[teamId]/projects/actions";
 
 export function NewProjectForm({ teams }: { teams: { id: string; name: string }[] }) {
+  const [open, setOpen] = useState(false);
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     createProjectAction,
     null,
   );
+
+  if (!open) {
+    return (
+      <div className="flex justify-end">
+        <button type="button" onClick={() => setOpen(true)} className="ac-btn">
+          ＋ 新建项目
+        </button>
+      </div>
+    );
+  }
 
   return (
     <form action={formAction} className="ac-card space-y-2 p-4">
@@ -40,9 +51,18 @@ export function NewProjectForm({ teams }: { teams: { id: string; name: string }[
         </label>
       </div>
       {state?.error && <p className="text-sm text-high">{state.error}</p>}
-      <button disabled={pending} className="ac-btn">
-        {pending ? "创建中…" : "创建"}
-      </button>
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="ac-btn-ghost"
+        >
+          取消
+        </button>
+        <button disabled={pending} className="ac-btn">
+          {pending ? "创建中…" : "创建"}
+        </button>
+      </div>
     </form>
   );
 }
