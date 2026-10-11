@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { listRoomMessages, listRoomMembers, listMyRooms, getRoomMeta } from "@/lib/chat";
+import { listRoomMessages, listRoomMembers, listMyRooms, getRoomMeta, markRoomRead } from "@/lib/chat";
 import { AppError, ForbiddenError } from "@/lib/errors";
 
 // 轮询：拉取某会话消息 + 全量未读（供侧栏红点）
@@ -15,6 +15,8 @@ export async function GET(req: Request) {
   }
 
   try {
+    // 拉取即视为「正在查看该会话」：推进读水位，让发消息方实时看到已读回执
+    await markRoomRead(session.user.id, roomId);
     const [messages, room, members, { groupRooms, dmRooms, unreadTotal }] = await Promise.all([
       listRoomMessages(session.user.id, roomId),
       getRoomMeta(session.user.id, roomId),

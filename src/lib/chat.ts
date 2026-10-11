@@ -228,7 +228,7 @@ export async function getOrCreateGroupRoom(actorId: string, projectId: string) {
   return room;
 }
 
-// 会话消息（升序，含发送者姓名与 mine 标记）
+// 会话消息（升序，含发送者姓名、mine 标记与读回执 readBy）
 export async function listRoomMessages(actorId: string, roomId: string) {
   await requireRoomAccess(actorId, roomId);
   const rows = await db
@@ -243,7 +243,31 @@ export async function listRoomMessages(actorId: string, roomId: string) {
     .innerJoin(users, eq(chatMessages.senderId, users.id))
     .where(eq(chatMessages.roomId, roomId))
     .orderBy(chatMessages.createdAt);
-  return rows.map((r) => ({ ...r, mine: r.senderId === actorId }));
+
+  // 读回执：该会话各成员读水位（含姓名）。群聊成员懒写 chatRoomMembers，
+  // 未开过会话的成员无行 → 自然视为未读。
+  const members = await db
+    .select({
+      userId: chatRoomMembers.userId,
+      name: users.name,
+      lastReadAt: chatRoomMembers.lastReadAt,
+    })
+    .from(chatRoomMembers)
+    .innerJoin(users, eq(chatRoomMembers.userId, users.id))
+    .where(eq(chatRoomMembers.roomId, roomId));
+
+  return rows.map((r) => ({
+    ...r,
+    mine: r.senderId === actorId,
+    readBy: members
+      .filter(
+        (m) =>
+          m.userId !== r.senderId &&
+          m.lastReadAt != null &&
+          m.lastReadAt.getTime() >= r.createdAt.getTime(),
+      )
+      .map((m) => ({ id: m.userId, name: m.name ?? "" })),
+  }));
 }
 
 // 会话元信息（深链自动打开用）：标题 = 群聊「项目-团队」/ 私聊对方名

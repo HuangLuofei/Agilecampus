@@ -17,6 +17,7 @@ type Message = {
   content: string;
   createdAt: string;
   mine: boolean;
+  readBy?: { id: string; name: string }[];
 };
 
 type Member = { id: string; name: string };
@@ -339,6 +340,13 @@ export function ChatApp({
                       <span className="text-xs text-ink-faint">{fmtTime(m.createdAt)}</span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm text-ink">{renderContent(m.content)}</p>
+                    {m.mine && (
+                      <ReadReceipt
+                        message={m}
+                        type={selected.type}
+                        totalReaders={otherMembers.length}
+                      />
+                    )}
                   </div>
                 </div>
               ))}
@@ -418,6 +426,32 @@ function UnreadDot({ count }: { count: number }) {
   return (
     <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
       {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+// 已读回执：仅自己发的消息展示。私聊「已读/未读」；群聊「已读 N/M」，悬停显示已读成员名。
+function ReadReceipt({
+  message,
+  type,
+  totalReaders,
+}: {
+  message: Message;
+  type: "group" | "dm";
+  totalReaders: number;
+}) {
+  const readers = message.readBy ?? [];
+  if (readers.length === 0) {
+    return <span className="mt-0.5 block text-right text-[11px] leading-none text-ink-faint">未读</span>;
+  }
+  const label = type === "dm" ? "已读" : `已读 ${readers.length}/${totalReaders}`;
+  const names = type === "group" ? readers.map((r) => r.name).join("、") : "";
+  return (
+    <span
+      className="mt-0.5 block text-right text-[11px] leading-none text-primary"
+      title={names ? `已读：${names}` : undefined}
+    >
+      {label}
     </span>
   );
 }

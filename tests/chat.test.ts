@@ -196,3 +196,52 @@ describe("群聊 @ 艾特通知", () => {
     expect(notifs.filter((n) => n.type === "chat_mentioned")).toHaveLength(0);
   });
 });
+
+describe("已读回执", () => {
+  beforeEach(resetDb);
+
+  it("私聊：对方标记已读后，发送方看到「已读」", async () => {
+    const { owner, student } = await scene();
+    const room = await getOrCreateDmRoom(owner.id, student.id);
+    await sendMessage(owner.id, room.id, "在吗");
+
+    let msgs = await listRoomMessages(owner.id, room.id);
+    expect(msgs[0].readBy).toEqual([]);
+
+    await markRoomRead(student.id, room.id);
+    msgs = await listRoomMessages(owner.id, room.id);
+    expect(msgs[0].readBy.map((r) => r.name)).toEqual(["student"]);
+  });
+
+  it("群聊：各成员已读后计数递增，发送者自己不在其列", async () => {
+    const { owner, student, teacher, project } = await scene();
+    const room = await getOrCreateGroupRoom(owner.id, project.id);
+    await sendMessage(owner.id, room.id, "大家好");
+
+    let msgs = await listRoomMessages(owner.id, room.id);
+    expect(msgs[0].readBy).toEqual([]);
+
+    await markRoomRead(student.id, room.id);
+    msgs = await listRoomMessages(owner.id, room.id);
+    expect(msgs[0].readBy.map((r) => r.name).sort()).toEqual(["student"]);
+
+    await markRoomRead(teacher.id, room.id);
+    msgs = await listRoomMessages(owner.id, room.id);
+    expect(msgs[0].readBy.map((r) => r.name).sort()).toEqual(["student", "teacher"]);
+  });
+
+  it("读水位判定：标记已读后新消息仍为未读，旧消息为已读", async () => {
+    const { owner, student } = await scene();
+    const room = await getOrCreateDmRoom(owner.id, student.id);
+    await sendMessage(owner.id, room.id, "第一条");
+    await markRoomRead(student.id, room.id);
+    await new Promise((r) => setTimeout(r, 10)); // 确保读水位早于下一条消息
+    await sendMessage(owner.id, room.id, "第二条");
+
+    const msgs = await listRoomMessages(owner.id, room.id);
+    const first = msgs.find((m) => m.content === "第一条");
+    const second = msgs.find((m) => m.content === "第二条");
+    expect(first!.readBy.map((r) => r.name)).toEqual(["student"]);
+    expect(second!.readBy).toEqual([]);
+  });
+});
