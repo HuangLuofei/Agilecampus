@@ -1,48 +1,49 @@
 @import "tailwindcss";
 
 /* ============================================================
-   AgileCampus 设计系统 · 「飞书风」
-   冷灰底 · 品牌蓝 #3370FF · 无衬线 · 扁平干净
+   AgileCampus 设计系统 · 「深邃蓝 · 灰白」
+   仅 4 色收敛：#0F1F3A 最深蓝 · #2D4A8F 中度蓝 · #EAF0FB 极浅蓝白 · #F4F6FA 浅灰白
    ============================================================ */
 
 @theme {
-  /* 中性 · 冷灰 */
-  --color-canvas: #f5f6f7;
-  --color-surface: #ffffff;
-  --color-sunken: #f0f1f2;
-  --color-ink: #1f2329;
-  --color-ink-soft: #51565d;
-  --color-ink-faint: #8f959e;
-  --color-line: #e5e6eb;
-  --color-line-strong: #d0d3d9;
+  /* 中性 · 灰白 + 极浅蓝白 */
+  --color-canvas: #f4f6fa;
+  --color-surface: #eaf0fb;
+  --color-sunken: #f4f6fa;
+  --color-ink: #0f1f3a;
+  --color-ink-soft: rgba(15, 31, 58, 0.78);
+  --color-ink-faint: rgba(15, 31, 58, 0.60);
+  --color-line: rgba(45, 74, 143, 0.15);
+  --color-line-strong: rgba(45, 74, 143, 0.30);
+  --color-white: #f4f6fa;
 
-  /* 主色 · 飞书蓝 */
-  --color-primary: #3370ff;
-  --color-primary-hover: #2e65f0;
-  --color-primary-soft: #eef3fe;
-  --color-primary-ring: #c4d5ff;
+  /* 主色 · 中度蓝 */
+  --color-primary: #2d4a8f;
+  --color-primary-hover: #0f1f3a;
+  --color-primary-soft: rgba(45, 74, 143, 0.12);
+  --color-primary-ring: rgba(45, 74, 143, 0.25);
 
-  /* 导航 · 厦大蓝（左侧导航栏专用） */
-  --color-navy: #003c88;
-  --color-navy-deep: #002f66;
-  --color-navy-bright: #004a9e;
+  /* 导航 · 最深蓝（左侧导航栏专用） */
+  --color-navy: #0f1f3a;
+  --color-navy-deep: #0f1f3a;
+  --color-navy-bright: #2d4a8f;
 
-  /* 点缀 · 警示橙 */
-  --color-accent: #ff8800;
-  --color-accent-soft: #fff3e5;
+  /* 点缀 · 中度蓝 */
+  --color-accent: #2d4a8f;
+  --color-accent-soft: rgba(45, 74, 143, 0.14);
 
   /* 语义 · 看板列 */
-  --color-todo: #8f959e;
-  --color-doing: #3370ff;
-  --color-done: #2ea121;
+  --color-todo: #0f1f3a;
+  --color-doing: #2d4a8f;
+  --color-done: rgba(15, 31, 58, 0.60);
 
   /* 语义 · 优先级 */
-  --color-high: #f54a45;
-  --color-high-soft: #ffedea;
-  --color-medium: #ff8800;
-  --color-medium-soft: #fff3e5;
-  --color-low: #8f959e;
-  --color-low-soft: #f0f1f2;
+  --color-high: #0f1f3a;
+  --color-high-soft: rgba(15, 31, 58, 0.10);
+  --color-medium: #2d4a8f;
+  --color-medium-soft: rgba(45, 74, 143, 0.12);
+  --color-low: rgba(15, 31, 58, 0.55);
+  --color-low-soft: rgba(15, 31, 58, 0.06);
 
   /* 字体 · 全无衬线 */
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
@@ -54,8 +55,8 @@
 }
 
 :root {
-  --shadow-card: 0 1px 2px rgba(31, 35, 41, 0.04), 0 4px 12px -4px rgba(31, 35, 41, 0.06);
-  --shadow-pop: 0 4px 12px rgba(31, 35, 41, 0.08), 0 16px 32px -12px rgba(31, 35, 41, 0.18);
+  --shadow-card: 0 8px 24px rgba(15, 31, 58, 0.06);
+  --shadow-pop: 0 12px 32px rgba(15, 31, 58, 0.10);
 }
 
 body {
@@ -111,7 +112,7 @@ body {
     padding: 0.5rem 1rem;
     font-size: 0.875rem;
     font-weight: 500;
-    color: #fff;
+    color: #f4f6fa;
     transition: background-color 0.15s ease;
   }
   .ac-btn:hover:not(:disabled) {
@@ -220,7 +221,7 @@ body {
     margin: 0.8em 0;
     padding: 0.9em 1em;
     background: var(--color-ink);
-    color: #f2f3f5;
+    color: #f4f6fa;
     border-radius: var(--radius-field);
     overflow-x: auto;
     line-height: 1.5;
