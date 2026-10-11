@@ -104,6 +104,12 @@ export default async function ProjectPage({
             >
               时间线
             </a>
+            <a
+              href={`/projects/${projectId}/assets`}
+              className="ac-btn-ghost whitespace-nowrap"
+            >
+              资产管理
+            </a>
           </div>
         </div>
         {project.description && (
