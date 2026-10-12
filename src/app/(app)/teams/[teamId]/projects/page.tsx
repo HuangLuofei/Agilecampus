@@ -24,6 +24,9 @@ export default async function ProjectsPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-8 py-8">
+      <Link href={`/teams/${teamId}`} className="text-xs text-ink-soft hover:text-primary">
+        ← 团队主页
+      </Link>
       <h1 className="font-display text-2xl font-semibold text-ink">项目</h1>
       <ul className="space-y-2">
         {projects.map((p) => (

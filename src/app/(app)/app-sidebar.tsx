@@ -159,7 +159,7 @@ export function AppSidebar({
                   {expanded ? "▾" : "▸"}
                 </button>
                 <Link
-                  href={`/teams/${t.id}/members`}
+                  href={`/teams/${t.id}`}
                   className="min-w-0 flex-1 truncate text-sm text-white/85 hover:text-white"
                 >
                   {t.name}

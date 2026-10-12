@@ -50,6 +50,35 @@ export async function listTeamProjects(actorId: string, teamId: string) {
     .orderBy(desc(projects.createdAt));
 }
 
+// 团队主页用：某团队的项目 + 任务统计（进度条）
+export async function listTeamProjectsWithStats(actorId: string, teamId: string) {
+  await requireTeamRole(actorId, teamId, ["admin", "teacher", "student"]);
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.teamId, teamId))
+    .orderBy(desc(projects.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const stats = await db
+    .select({
+      projectId: tasks.projectId,
+      status: tasks.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tasks)
+    .where(inArray(tasks.projectId, rows.map((r) => r.id)))
+    .groupBy(tasks.projectId, tasks.status);
+
+  return rows.map((p) => {
+    const mine = stats.filter((s) => s.projectId === p.id);
+    const total = mine.reduce((n, s) => n + s.count, 0);
+    const doneCount = mine.find((s) => s.status === "done")?.count ?? 0;
+    return { ...p, taskTotal: total, doneCount };
+  });
+}
+
 // 项目编辑/归档：仅团队 admin 可动（与 createProject 同一权限口径）
 export async function updateProject(
   actorId: string,
