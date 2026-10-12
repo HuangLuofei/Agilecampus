@@ -68,7 +68,8 @@ describe("syncDueSoonNotifications", () => {
     await updateTask(owner.id, done.id, { status: "done" });
 
     const res = await syncDueSoonNotifications(member.id);
-    expect(res).toEqual({ dueSoon: 1, overdue: 1 });
+    // managed=0：这两条都是本人负责的任务，不是「管理员兜底」口径进来的
+    expect(res).toEqual({ dueSoon: 1, overdue: 1, managed: 0 });
 
     const items = (await listNotifications(member.id)).filter((i) => i.type === "task_due_soon");
     expect(items).toHaveLength(2);
@@ -100,7 +101,7 @@ describe("syncDueSoonNotifications", () => {
     );
   });
 
-  it("syncDueSoonNotificationsForAll 为所有负责人补齐提醒", async () => {
+  it("syncDueSoonNotificationsForAll 为所有负责人补齐提醒（并含管理该项目的管理员兜底）", async () => {
     const { owner, member, project } = await scene();
     await createTask(owner.id, project.id, {
       title: "临期任务",
@@ -109,9 +110,14 @@ describe("syncDueSoonNotifications", () => {
     });
 
     const res = await syncDueSoonNotificationsForAll();
-    expect(res.users).toBe(1);
+    // 负责人 member + 该项目所属团队的管理员 owner（兜底口径）→ 2 人
+    expect(res.users).toBe(2);
     expect((await listNotifications(member.id)).filter((i) => i.type === "task_due_soon")).toHaveLength(
       1,
     );
+    // 管理员不是负责人，提醒正文须标注来源（项目 + 负责人），多负责人以「、」连接
+    const ownerNotifs = (await listNotifications(owner.id)).filter((i) => i.type === "task_due_soon");
+    expect(ownerNotifs).toHaveLength(1);
+    expect(ownerNotifs[0].content).toContain("（项目：项目A｜负责人：member）");
   });
 });

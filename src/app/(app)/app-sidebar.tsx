@@ -77,7 +77,7 @@ export function AppSidebar({
               <span className="w-4 text-center">✉</span>
               <span>消息</span>
               {totalUnread > 0 && (
-                <span className="ml-auto grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
+                <span className="ml-auto grid min-h-4 min-w-4 place-items-center rounded-full bg-alert px-1 text-[10px] font-semibold text-white">
                   {totalUnread > 99 ? "99+" : totalUnread}
                 </span>
               )}
@@ -238,7 +238,7 @@ function NavItem({
       <span className="w-4 text-center">{icon}</span>
       <span>{label}</span>
       {badge !== undefined && (
-        <span className="ml-auto grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
+        <span className="ml-auto grid min-h-4 min-w-4 place-items-center rounded-full bg-alert px-1 text-[10px] font-semibold text-white">
           {badge > 99 ? "99+" : badge}
         </span>
       )}
@@ -267,7 +267,7 @@ function SidebarSubLink({
       <span className="h-1 w-1 shrink-0 rounded-full bg-white/40" />
       <span className="flex-1 truncate">{label}</span>
       {badge !== undefined && badge > 0 && (
-        <span className="grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
+        <span className="grid min-h-4 min-w-4 place-items-center rounded-full bg-alert px-1 text-[10px] font-semibold text-white">
           {badge > 99 ? "99+" : badge}
         </span>
       )}

@@ -10,6 +10,7 @@ const taskDraftSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   assigneeId: z.string().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   dueDate: z.string().optional(),
   milestoneId: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
@@ -28,6 +29,7 @@ const patchSchema = z.object({
   title: z.string().optional(),
   status: z.enum(["todo", "doing", "done"]).optional(),
   assigneeId: z.string().optional(),
+  assigneeIds: z.array(z.string()).optional(),
   dueDate: z.string().optional(),
   milestoneId: z.string().optional(),
   priority: z.enum(["low", "medium", "high"]).optional(),
@@ -76,8 +78,12 @@ export async function commitDraft(
         for (const t of d.tasks) out.push(await createTask(actorId, projectId, t, { tx, actorType: "ai" }));
         return out;
       });
-      // 事务提交后补发通知（tx 路径 createTask 不 fire，由此处统一发）
-      for (const t of created) if (t.assigneeId) void notifyTaskAssigned(t);
+      // 事务提交后补发通知（tx 路径 createTask 不 fire，由此处统一发；多负责人逐一通知）
+      created.forEach((t, i) => {
+        const d0 = d.tasks[i];
+        const ids = d0.assigneeIds ?? (d0.assigneeId ? [d0.assigneeId] : []);
+        if (ids.length > 0) void notifyTaskAssigned(t, ids);
+      });
       return { committed: d.tasks.length, conflicts: [] };
     }
     case "update_tasks": {

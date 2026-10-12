@@ -84,6 +84,12 @@ export function taskChangeEvents(
 const STATUS_LABEL: Record<string, string> = { todo: "待办", doing: "进行中", done: "已完成" };
 const PRIORITY_LABEL: Record<string, string> = { low: "低", medium: "中", high: "高" };
 
+// 从变更快照里取负责人 id 列表：新格式存 assigneeIds 数组，旧事件只有单个 assigneeId
+function assigneeIdListFrom(v: Record<string, unknown>): string[] {
+  if (Array.isArray(v.assigneeIds)) return (v.assigneeIds as unknown[]).filter(Boolean).map(String);
+  return v.assigneeId ? [String(v.assigneeId)] : [];
+}
+
 export type TaskEventField = { label: string; before: string; after: string };
 
 function truncate(text: string, max = 80): string {
@@ -104,6 +110,10 @@ export function describeTaskEvent(
   const oldV = (event.oldValue ?? {}) as Record<string, unknown>;
   const newV = (event.newValue ?? {}) as Record<string, unknown>;
   const nameOf = (id: unknown) => (id ? (assigneeNames[String(id)] ?? "某成员") : "未指派");
+  const nameListOf = (v: Record<string, unknown>) => {
+    const ids = assigneeIdListFrom(v);
+    return ids.length > 0 ? ids.map((id) => assigneeNames[id] ?? "某成员").join("、") : "未指派";
+  };
   const row = (label: string, before: string, after: string): TaskEventField => ({
     label,
     before,
@@ -113,7 +123,9 @@ export function describeTaskEvent(
   switch (event.action) {
     case "created": {
       const fields: TaskEventField[] = [row("任务名称", "（新任务）", displayValue(newV.title))];
-      if (newV.assigneeId) fields.push(row("负责人", "未指派", nameOf(newV.assigneeId)));
+      const createdAssignees = assigneeIdListFrom(newV);
+      if (createdAssignees.length > 0)
+        fields.push(row("负责人", "未指派", createdAssignees.map((id) => nameOf(id)).join("、")));
       if (newV.priority)
         fields.push(
           row("优先级", "（默认）", PRIORITY_LABEL[String(newV.priority)] ?? String(newV.priority)),
@@ -130,8 +142,8 @@ export function describeTaskEvent(
       };
     }
     case "assignee_changed": {
-      const before = nameOf(oldV.assigneeId);
-      const after = nameOf(newV.assigneeId);
+      const before = nameListOf(oldV);
+      const after = nameListOf(newV);
       return { summary: `将负责人从「${before}」改为「${after}」`, fields: [row("负责人", before, after)] };
     }
     case "due_date_changed": {
@@ -214,7 +226,9 @@ export async function getTaskEventForUser(actorId: string, eventId: string) {
   const oldV = (event.oldValue ?? {}) as Record<string, unknown>;
   const newV = (event.newValue ?? {}) as Record<string, unknown>;
   const ids = new Set<string>();
-  for (const v of [oldV.assigneeId, newV.assigneeId]) if (v) ids.add(String(v));
+  for (const v of [oldV, newV]) {
+    for (const id of assigneeIdListFrom(v)) ids.add(id);
+  }
   const assigneeNames: Record<string, string> = {};
   if (ids.size > 0) {
     const rows = await db

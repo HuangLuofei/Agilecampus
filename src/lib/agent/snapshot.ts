@@ -42,7 +42,7 @@ export async function buildProjectSnapshot(actorId: string, projectId: string): 
   // 成员段恒保留：assigneeId 只能取自此处，且无 list_members 读工具可兜底。
   // 附技能标签供模型参考分工（自报，仅供参考）。
   const memberBlock =
-    "\n\n## 成员（assigneeId 只能取此处的 id；指派可参考其技能标签）\n" +
+    "\n\n## 成员（assigneeId / assigneeIds 只能取此处的 id；指派可参考其技能标签）\n" +
     members
       .map((m) => {
         const skill = m.skillTags.length > 0 ? `｜技能 ${m.skillTags.join("/")}` : "";
@@ -68,7 +68,9 @@ export async function buildProjectSnapshot(actorId: string, projectId: string): 
         shownTasks
           .map(
             (t) =>
-              `- [${t.status}] ${t.title}｜${t.assigneeName ?? "未指派"}｜${t.dueDate ?? "无截止"}｜id=${t.id}`,
+              `- [${t.status}] ${t.title}｜${
+                t.assignees.length > 0 ? t.assignees.map((a) => a.name).join("、") : "未指派"
+              }｜${t.dueDate ?? "无截止"}｜id=${t.id}`,
           )
           .join("\n") +
         (tasks.length > shownTasks.length

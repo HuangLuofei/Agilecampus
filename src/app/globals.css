@@ -2,14 +2,15 @@
 
 /* ============================================================
    AgileCampus 设计系统 · 「深邃蓝 · 灰白」
-   仅 4 色收敛：#0F1F3A 最深蓝 · #2D4A8F 中度蓝 · #EAF0FB 极浅蓝白 · #F4F6FA 浅灰白
+   仅 4 色收敛：#0F1F3A 最深蓝 · #2D4A8F 中度蓝 · #EAF0FB 极浅蓝白（页面背景） · #F4F6FA 浅灰白（卡片面）
+   另加 1 个警示红 #F54A45（--color-alert），只用于未读角标与到期提醒条
    ============================================================ */
 
 @theme {
   /* 中性 · 灰白 + 极浅蓝白 */
-  --color-canvas: #f4f6fa;
-  --color-surface: #eaf0fb;
-  --color-sunken: #f4f6fa;
+  --color-canvas: #eaf0fb;
+  --color-surface: #f4f6fa;
+  --color-sunken: #eaf0fb;
   --color-ink: #0f1f3a;
   --color-ink-soft: rgba(15, 31, 58, 0.78);
   --color-ink-faint: rgba(15, 31, 58, 0.60);
@@ -44,6 +45,10 @@
   --color-medium-soft: rgba(45, 74, 143, 0.12);
   --color-low: rgba(15, 31, 58, 0.55);
   --color-low-soft: rgba(15, 31, 58, 0.06);
+
+  /* 语义 · 警示红（唯一点缀色，仅用于「未读角标」「到期/逾期提醒条」等必须抢眼的提醒） */
+  --color-alert: #f54a45;
+  --color-alert-soft: #ffedea;
 
   /* 字体 · 全无衬线 */
   --font-sans: var(--font-sans), ui-sans-serif, system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;

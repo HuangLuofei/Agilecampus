@@ -1,4 +1,4 @@
-import type { FilterableTask, GroupBy } from "./board-filters";
+import { assigneeIdsOf, type FilterableTask, type GroupBy } from "./board-filters";
 
 // 拖拽落列时提交的字段补丁。四字段与 moveTaskAction 的白名单严格对应。
 export type ColumnPatch = {
@@ -31,15 +31,16 @@ export function deriveColumns(group: GroupBy, ctx: ColumnContext): BoardColumn[]
           key: m.id,
           label: m.name,
           tone: NEUTRAL,
+          // 落列补丁走单值 assigneeId（updateTask 会把它当作「仅指派给该人」）
           patch: { assigneeId: m.id } as ColumnPatch,
-          matches: (t: FilterableTask) => t.assigneeId === m.id,
+          matches: (t: FilterableTask) => assigneeIdsOf(t).includes(m.id),
         })),
         {
           key: "none",
           label: "未指派",
           tone: "text-ink-faint",
           patch: { assigneeId: null },
-          matches: (t: FilterableTask) => t.assigneeId === null,
+          matches: (t: FilterableTask) => assigneeIdsOf(t).length === 0,
         },
       ];
 

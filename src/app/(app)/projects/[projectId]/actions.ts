@@ -14,11 +14,19 @@ export type FormState = { error: string } | null;
 // 更新任务专用：成功回 { ok: true }，供编辑弹窗据以自闭
 export type UpdateTaskState = { error: string } | { ok: true } | null;
 
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+
+// 多负责人：表单里每个选中项一个同名隐藏字段，故须用 getAll 收集（Object.fromEntries 只留最后一个）
+function readAssigneeIds(formData: FormData): string[] {
+  const ids = formData.getAll("assigneeIds").map(String).filter((s) => UUID_RE.test(s));
+  return [...new Set(ids)];
+}
+
 const createTaskSchema = z.object({
   projectId: z.uuid(),
   title: z.string().trim().min(1, "请填写任务标题"),
   description: z.string().trim().optional(),
-  assigneeId: z.uuid().optional(),
+  assigneeIds: z.array(z.uuid()).optional(),
   startDate: z.iso.date("日期格式不正确").optional(),
   dueDate: z.iso.date("日期格式不正确").optional(),
   milestoneId: z.uuid().optional(),
@@ -33,9 +41,10 @@ export async function createTaskAction(
   if (!session?.user) return { error: "请先登录" };
 
   const raw = Object.fromEntries(formData);
+  const assigneeIds = readAssigneeIds(formData);
   const parsed = createTaskSchema.safeParse({
     ...raw,
-    assigneeId: raw.assigneeId || undefined,
+    assigneeIds: assigneeIds.length > 0 ? assigneeIds : undefined,
     startDate: raw.startDate || undefined,
     dueDate: raw.dueDate || undefined,
     milestoneId: raw.milestoneId || undefined,
@@ -132,7 +141,8 @@ const updateTaskSchema = z.object({
   projectId: z.uuid(),
   title: z.string().trim().min(1, "标题不可为空"),
   description: z.string().trim().optional(),
-  assigneeId: z.uuid().optional(),
+  // 编辑弹窗恒渲染负责人多选控件，故此处为「必有」：空数组即清空负责人
+  assigneeIds: z.array(z.uuid()),
   milestoneId: z.uuid().optional(),
   startDate: z.iso.date("日期格式不正确").optional(),
   dueDate: z.iso.date("日期格式不正确").optional(),
@@ -150,7 +160,7 @@ export async function updateTaskAction(
   const raw = Object.fromEntries(formData);
   const parsed = updateTaskSchema.safeParse({
     ...raw,
-    assigneeId: raw.assigneeId || undefined,
+    assigneeIds: readAssigneeIds(formData),
     milestoneId: raw.milestoneId || undefined,
     startDate: raw.startDate || undefined,
     dueDate: raw.dueDate || undefined,
@@ -161,16 +171,16 @@ export async function updateTaskAction(
   const successorIds = formData
     .getAll("successorIds")
     .map(String)
-    .filter((s) => /^[0-9a-f-]{36}$/i.test(s));
+    .filter((s) => UUID_RE.test(s));
   const labelIds = formData
     .getAll("labelIds")
     .map(String)
-    .filter((s) => /^[0-9a-f-]{36}$/i.test(s));
+    .filter((s) => UUID_RE.test(s));
   try {
     await updateTask(session.user.id, taskId, {
       title: patch.title,
       description: patch.description ?? null,
-      assigneeId: patch.assigneeId ?? null,
+      assigneeIds: patch.assigneeIds,
       milestoneId: patch.milestoneId ?? null,
       startDate: patch.startDate ?? null,
       dueDate: patch.dueDate ?? null,
