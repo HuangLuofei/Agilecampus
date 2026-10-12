@@ -59,21 +59,19 @@ export function AppSidebar({
       {/* 导航 */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
         <NavItem href="/projects" label="工作台" icon="▦" active={isActive("/projects")} />
-        {/* 消息：展开为「对话」与「通知」 */}
+        {/* 消息：点击整行展开/收起「对话」「通知」 */}
         <div>
-          <div
-            className={`flex items-center gap-1 rounded-field px-1.5 py-1.5 ${
+          <button
+            type="button"
+            onClick={() => setMessagesOpen((v) => !v)}
+            aria-expanded={messagesOpen}
+            className={`flex w-full items-center gap-1 rounded-field px-1.5 py-1.5 text-left ${
               isActive("/messages") ? "bg-white/10" : "hover:bg-white/10"
             }`}
           >
-            <button
-              type="button"
-              onClick={() => setMessagesOpen((v) => !v)}
-              className="grid h-6 w-6 shrink-0 place-items-center rounded text-white/70 hover:bg-white/10"
-              aria-label={messagesOpen ? "折叠消息" : "展开消息"}
-            >
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded text-white/70">
               {messagesOpen ? "▾" : "▸"}
-            </button>
+            </span>
             <span className="flex min-w-0 flex-1 items-center gap-2.5 py-1 text-sm text-white/85">
               <span className="w-4 text-center">✉</span>
               <span>消息</span>
@@ -83,7 +81,7 @@ export function AppSidebar({
                 </span>
               )}
             </span>
-          </div>
+          </button>
           {messagesOpen && (
             <>
               <MessageSubLink
