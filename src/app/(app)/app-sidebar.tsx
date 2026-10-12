@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { logoutAction } from "./logout-action";
 
@@ -21,13 +21,18 @@ const ROLE_LABEL: Record<string, string> = {
 export function AppSidebar({
   userName,
   teams,
-  unread,
+  unreadChats,
+  unreadNotifications,
 }: {
   userName: string | null | undefined;
   teams: SidebarTeam[];
-  unread: number;
+  unreadChats: number;
+  unreadNotifications: number;
 }) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [messagesOpen, setMessagesOpen] = useState(true);
+  const totalUnread = unreadChats + unreadNotifications;
   // 默认展开第一个团队，其余折叠
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -54,13 +59,48 @@ export function AppSidebar({
       {/* 导航 */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
         <NavItem href="/projects" label="工作台" icon="▦" active={isActive("/projects")} />
-        <NavItem
-          href="/messages"
-          label="消息"
-          icon="✉"
-          active={isActive("/messages")}
-          badge={unread > 0 ? unread : undefined}
-        />
+        {/* 消息：展开为「对话」与「通知」 */}
+        <div>
+          <div
+            className={`flex items-center gap-1 rounded-field px-1.5 py-1.5 ${
+              isActive("/messages") ? "bg-white/10" : "hover:bg-white/10"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={() => setMessagesOpen((v) => !v)}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-white/70 hover:bg-white/10"
+              aria-label={messagesOpen ? "折叠消息" : "展开消息"}
+            >
+              {messagesOpen ? "▾" : "▸"}
+            </button>
+            <span className="flex min-w-0 flex-1 items-center gap-2.5 py-1 text-sm text-white/85">
+              <span className="w-4 text-center">✉</span>
+              <span>消息</span>
+              {totalUnread > 0 && (
+                <span className="ml-auto grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
+                  {totalUnread > 99 ? "99+" : totalUnread}
+                </span>
+              )}
+            </span>
+          </div>
+          {messagesOpen && (
+            <>
+              <MessageSubLink
+                href="/messages"
+                label="对话"
+                active={pathname === "/messages" && searchParams.get("tab") !== "notifications"}
+                badge={unreadChats}
+              />
+              <MessageSubLink
+                href="/messages?tab=notifications"
+                label="通知"
+                active={pathname === "/messages" && searchParams.get("tab") === "notifications"}
+                badge={unreadNotifications}
+              />
+            </>
+          )}
+        </div>
         <NavItem href="/settings" label="设置" icon="⚙" active={isActive("/settings")} />
 
         {teams.length > 0 && (
@@ -163,6 +203,35 @@ function NavItem({
       <span>{label}</span>
       {badge !== undefined && (
         <span className="ml-auto grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </Link>
+  );
+}
+
+function MessageSubLink({
+  href,
+  label,
+  active,
+  badge,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  badge: number;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`flex items-center gap-2 rounded-field py-1.5 pl-9 pr-2 text-[13px] ${
+        active ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"
+      }`}
+    >
+      <span className="h-1 w-1 shrink-0 rounded-full bg-white/40" />
+      <span className="flex-1 truncate">{label}</span>
+      {badge > 0 && (
+        <span className="grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
           {badge > 99 ? "99+" : badge}
         </span>
       )}

@@ -31,7 +31,8 @@ export default async function AppLayout({
       <AppSidebar
         userName={session.user.name}
         teams={teams}
-        unread={unreadCount + unreadChats}
+        unreadChats={unreadChats}
+        unreadNotifications={unreadCount}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {dueParts.length > 0 && (
