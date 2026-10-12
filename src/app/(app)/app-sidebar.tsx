@@ -32,6 +32,7 @@ export function AppSidebar({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [messagesOpen, setMessagesOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(true);
   const totalUnread = unreadChats + unreadNotifications;
   // 默认展开第一个团队，其余折叠
   const [open, setOpen] = useState<Record<string, boolean>>(() => {
@@ -84,13 +85,13 @@ export function AppSidebar({
           </button>
           {messagesOpen && (
             <>
-              <MessageSubLink
+              <SidebarSubLink
                 href="/messages"
                 label="对话"
                 active={pathname === "/messages" && searchParams.get("tab") !== "notifications"}
                 badge={unreadChats}
               />
-              <MessageSubLink
+              <SidebarSubLink
                 href="/messages?tab=notifications"
                 label="通知"
                 active={pathname === "/messages" && searchParams.get("tab") === "notifications"}
@@ -99,7 +100,44 @@ export function AppSidebar({
             </>
           )}
         </div>
-        <NavItem href="/settings" label="设置" icon="⚙" active={isActive("/settings")} />
+        {/* 设置：点击整行展开/收起 */}
+        <div>
+          <button
+            type="button"
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-expanded={settingsOpen}
+            className={`flex w-full items-center gap-1 rounded-field px-1.5 py-1.5 text-left ${
+              isActive("/settings") ? "bg-white/10" : "hover:bg-white/10"
+            }`}
+          >
+            <span className="grid h-6 w-6 shrink-0 place-items-center rounded text-white/70">
+              {settingsOpen ? "▾" : "▸"}
+            </span>
+            <span className="flex min-w-0 flex-1 items-center gap-2.5 py-1 text-sm text-white/85">
+              <span className="w-4 text-center">⚙</span>
+              <span>设置</span>
+            </span>
+          </button>
+          {settingsOpen && (
+            <>
+              <SidebarSubLink
+                href="/settings"
+                label="账号设置"
+                active={pathname === "/settings"}
+              />
+              <SidebarSubLink
+                href="/settings/profile"
+                label="技能标签"
+                active={pathname.startsWith("/settings/profile")}
+              />
+              <SidebarSubLink
+                href="/settings/tokens"
+                label="访问令牌"
+                active={pathname.startsWith("/settings/tokens")}
+              />
+            </>
+          )}
+        </div>
 
         {teams.length > 0 && (
           <p className="px-2.5 pb-1 pt-4 text-[11px] font-medium uppercase tracking-wider text-white/50">
@@ -208,7 +246,7 @@ function NavItem({
   );
 }
 
-function MessageSubLink({
+function SidebarSubLink({
   href,
   label,
   active,
@@ -217,7 +255,7 @@ function MessageSubLink({
   href: string;
   label: string;
   active: boolean;
-  badge: number;
+  badge?: number;
 }) {
   return (
     <Link
@@ -228,7 +266,7 @@ function MessageSubLink({
     >
       <span className="h-1 w-1 shrink-0 rounded-full bg-white/40" />
       <span className="flex-1 truncate">{label}</span>
-      {badge > 0 && (
+      {badge !== undefined && badge > 0 && (
         <span className="grid min-h-4 min-w-4 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
           {badge > 99 ? "99+" : badge}
         </span>
