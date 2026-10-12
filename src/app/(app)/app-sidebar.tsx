@@ -44,7 +44,7 @@ export function AppSidebar({
     pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col bg-[linear-gradient(180deg,var(--color-navy-bright)_0%,var(--color-navy)_45%,var(--color-navy-deep)_100%)] text-white">
+    <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col bg-[linear-gradient(180deg,#004a9e_0%,#003c88_45%,#002f66_100%)] text-white">
       {/* 品牌 */}
       <Link href="/projects" className="flex items-center gap-2.5 border-b border-white/15 px-4 py-4">
         <span className="grid h-7 w-7 place-items-center rounded-md bg-white font-display text-sm font-bold text-navy">
