@@ -14,7 +14,6 @@ import {
 import { AppError, ForbiddenError } from "./errors";
 import { getTeamMembership } from "./team";
 import { getProjectForUser } from "./project";
-import { notifyTaskAssigned, notifyTaskCompleted } from "./notify";
 import { notifyTaskParticipants } from "./notification";
 import { recordTaskEvent, taskChangeEvents } from "./activity";
 
@@ -109,9 +108,8 @@ export async function createTask(
     tx: opts?.tx,
   });
 
-  // 非事务路径：即时通知（fire-and-forget，通知内部已吞异常）。事务路径由调用方提交后补发。
+  // 非事务路径：即时站内通知（fire-and-forget，通知内部已吞异常）。
   if (!opts?.tx) {
-    if (task.assigneeId) void notifyTaskAssigned(task);
     void notifyTaskParticipants({
       taskId: task.id,
       actorId,
@@ -226,10 +224,6 @@ export async function updateTask(
   }
 
   if (!opts?.tx) {
-    // 改派：通知新负责人
-    if (patch.assigneeId && patch.assigneeId !== task.assigneeId) void notifyTaskAssigned(updated);
-    // 完成：通知创建者(≠操作者)
-    if (patch.status === "done" && task.status !== "done") void notifyTaskCompleted(updated, actorId);
     if (changes.length > 0) {
       // 一次 update 可能记多条 event，通知链到主事件（changes[0]）
       const primaryEventId = eventIds[0] ?? null;

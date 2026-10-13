@@ -2,7 +2,6 @@ import { z } from "zod";
 import { db } from "@/db";
 import { createMilestone, createProject, getProjectForUser } from "@/lib/project";
 import { createTask, listProjectTasks, updateTask } from "@/lib/task";
-import { notifyTaskAssigned, notifyTaskCompleted } from "@/lib/notify";
 import { ForbiddenError } from "@/lib/errors";
 import type { WriteToolName } from "./tools";
 
@@ -76,15 +75,12 @@ export async function commitDraft(
         for (const t of d.tasks) out.push(await createTask(actorId, projectId, t, { tx, actorType: "ai" }));
         return out;
       });
-      // 事务提交后补发通知（tx 路径 createTask 不 fire，由此处统一发）
-      for (const t of created) if (t.assigneeId) void notifyTaskAssigned(t);
-      return { committed: d.tasks.length, conflicts: [] };
+      return { committed: created.length, conflicts: [] };
     }
     case "update_tasks": {
       const d = updateTasksSchema.parse(draft);
       const current = await listProjectTasks(actorId, projectId);
       const versionOf = new Map(current.map((r) => [r.id, r.updatedAt.toISOString()]));
-      const prevStatus = new Map(current.map((r) => [r.id, r.status]));
       const conflicts: string[] = [];
       // 先剔除版本冲突项，余者裹事务批量应用（整批回滚保证一致）
       const toApply = d.updates.filter((u) => {
@@ -99,11 +95,7 @@ export async function commitDraft(
         for (const u of toApply) out.push(await updateTask(actorId, u.taskId, u.patch, { tx, actorType: "ai" }));
         return out;
       });
-      // 事务提交后补发完成通知：状态由非 done 转 done 者，知会创建者
-      for (const t of updatedRows) {
-        if (t.status === "done" && prevStatus.get(t.id) !== "done")
-          void notifyTaskCompleted(t, actorId);
-      }
+      // 事务提交后无需补发通知（站内通知在 updateTask 非事务路径内已发）
       return { committed: updatedRows.length, conflicts };
     }
     case "plan_sprint": {
