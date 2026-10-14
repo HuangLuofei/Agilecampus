@@ -60,6 +60,7 @@ export function AppSidebar({
       {/* 导航 */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
         <NavItem href="/projects" label="工作台" icon="▦" active={isActive("/projects")} />
+        <NavItem href="/assets" label="我的资产" icon="▤" active={isActive("/assets")} />
         {/* 消息：点击整行展开/收起「对话」「通知」 */}
         <div>
           <button

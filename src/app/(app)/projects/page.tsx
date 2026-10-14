@@ -53,7 +53,7 @@ export default async function WorkbenchPage({
         <>
           {/* 统计卡片 */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard href="/teams" icon="📁" value={stats.projectCount} label="我的项目" tone="blue" />
+            <KpiCard href="/assets" icon="🗂" value={stats.assetCount} label="我的资产" tone="blue" />
             <KpiCard href="/tasks?status=doing" icon="✓" value={stats.doingCount} label="进行中任务" tone="green" />
             <KpiCard href="/tasks?status=todo" icon="⏰" value={stats.todoCount} label="待我处理" tone="orange" />
             <KpiCard href="/tasks?status=overdue" icon="!" value={stats.overdueCount} label="已逾期" tone="red" />

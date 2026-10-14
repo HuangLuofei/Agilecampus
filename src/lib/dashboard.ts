@@ -4,6 +4,7 @@ import { projects, taskEvents, tasks, teamMembers, users } from "@/db/schema";
 import { toDayString, todayStartMs } from "./due";
 import { listMyProjects, listMyTeamsWithProjects } from "./project";
 import { isAssigneeOf } from "./task";
+import { countMyAssets } from "./my-assets";
 
 const ACTION_LABEL: Record<string, string> = {
   created: "创建了任务",
@@ -158,10 +159,11 @@ export async function getDashboardData(actorId: string) {
   const teamIds = teams.map((t) => t.id);
   const projectIds = projects.map((p) => p.id);
 
-  const [stats, activity, todos] = await Promise.all([
+  const [stats, activity, todos, assetCount] = await Promise.all([
     getTaskStats(actorId),
     listRecentActivity(projectIds),
     listTodos(actorId),
+    countMyAssets(projectIds),
   ]);
 
   const members = teamIds.length
@@ -184,6 +186,7 @@ export async function getDashboardData(actorId: string) {
     projects,
     stats: {
       projectCount: projects.filter((p) => p.status === "active").length,
+      assetCount,
       ...stats,
     },
     activity,
