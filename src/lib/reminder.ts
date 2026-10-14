@@ -16,7 +16,7 @@ const DAY = 86_400_000;
 // 普通成员（student）只命中第 1 条，行为与原先完全一致。
 export async function syncDueSoonNotifications(
   userId: string,
-): Promise<{ dueSoon: number; overdue: number; managed: number }> {
+): Promise<{ dueSoon: number; overdue: number; managed: number; projectIds: string[] }> {
   const todayMs = todayStartMs();
   const horizon = toDayString(todayMs + DUE_SOON_DAYS * DAY);
 
@@ -71,7 +71,9 @@ export async function syncDueSoonNotifications(
   const overdue = items.filter((r) => r.state === "overdue").length;
   // 其中「不是我负责、但在我管理的项目里」的条数：红条据此说明提醒来源
   const managed = items.filter((r) => !r.mine).length;
-  if (items.length === 0) return { dueSoon: 0, overdue: 0, managed: 0 };
+  // 涉及的项目的去重集合：红条据此决定「查看提醒」能否直接跳某个项目看板
+  const projectIds = [...new Set(items.map((r) => r.projectId))];
+  if (items.length === 0) return { dueSoon: 0, overdue: 0, managed: 0, projectIds: [] };
 
   // 管理者视角的文案要写清另一位（或几位）负责人
   const notMine = items.filter((r) => !r.mine);
@@ -113,7 +115,7 @@ export async function syncDueSoonNotifications(
     }
   }
 
-  return { dueSoon, overdue, managed };
+  return { dueSoon, overdue, managed, projectIds };
 }
 
 // 给所有相关人各跑一遍（供 cron 调用：覆盖尚未登录的用户）。

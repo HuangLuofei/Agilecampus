@@ -27,6 +27,8 @@ export default async function AppLayout({
   if (due.dueSoon > 0) dueParts.push(`${due.dueSoon} 个任务即将到期`);
   // 管理者口径：其中有多少条来自「我管理的项目、但不由我负责」的任务
   const managedHint = due.managed > 0 ? `（含我管理项目内的 ${due.managed} 个）` : "";
+  // 提醒只涉及一个项目时，「查看提醒」直接跳该项目看板；涉及多个则跳提醒列表
+  const soleProjectId = due.projectIds.length === 1 ? due.projectIds[0] : null;
 
   return (
     <div className="flex min-h-screen">
@@ -46,7 +48,10 @@ export default async function AppLayout({
                 {dueParts.join("，")}
                 {managedHint}
               </span>
-              <Link href="/messages?tab=notifications" className="underline hover:no-underline">
+              <Link
+                href={soleProjectId ? `/projects/${soleProjectId}` : "/messages?tab=notifications"}
+                className="underline hover:no-underline"
+              >
                 查看提醒
               </Link>
             </div>
