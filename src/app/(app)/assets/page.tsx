@@ -5,6 +5,7 @@ import { listMyProjects } from "@/lib/project";
 import { listMyAssets, type MyAssetRow } from "@/lib/my-assets";
 import { formatSize } from "@/app/(app)/projects/[projectId]/assets/asset-types";
 import { BackButton } from "@/components/back-button";
+import { AssetCreator, AssetDeleteButton } from "./asset-actions";
 
 function fmtDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -76,6 +77,15 @@ export default async function MyAssetsPage({
         </div>
       ) : (
         <>
+          <AssetCreator
+            projects={projects.map((p) => ({
+              id: p.id,
+              name: p.name,
+              teamName: p.teamName,
+              archived: p.status === "archived",
+            }))}
+          />
+
           <form method="get" className="ac-card flex flex-wrap items-end gap-3 p-4">
             <label className="min-w-48 flex-1 space-y-1">
               <span className="text-xs font-medium text-ink-soft">搜索</span>
@@ -115,7 +125,12 @@ export default async function MyAssetsPage({
                   </div>
                   <ul className="space-y-2">
                     {items.map((row) => (
-                      <AssetRowItem key={`${row.kind}-${row.id}`} row={row} q={q} />
+                      <AssetRowItem
+                        key={`${row.kind}-${row.id}`}
+                        row={row}
+                        q={q}
+                        archived={project.status === "archived"}
+                      />
                     ))}
                   </ul>
                 </section>
@@ -128,7 +143,7 @@ export default async function MyAssetsPage({
   );
 }
 
-function AssetRowItem({ row, q }: { row: MyAssetRow; q: string }) {
+function AssetRowItem({ row, q, archived }: { row: MyAssetRow; q: string; archived: boolean }) {
   const isDoc = row.kind === "document";
   const isFile = row.assetType === "file";
   const icon = isDoc ? "📄" : isFile ? "📎" : "🔗";
@@ -187,6 +202,7 @@ function AssetRowItem({ row, q }: { row: MyAssetRow; q: string }) {
             下载
           </a>
         )}
+        {!isDoc && !archived && <AssetDeleteButton assetId={row.id} />}
       </div>
     </li>
   );
