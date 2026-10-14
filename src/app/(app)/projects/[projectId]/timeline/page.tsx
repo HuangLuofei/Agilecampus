@@ -64,8 +64,8 @@ export default async function TimelinePage({
   const todayMs = todayStart.getTime();
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6 py-8">
-      <header className="space-y-1">
+    <main className="mx-auto max-w-5xl space-y-6">
+      <header className="space-y-3">
         <BackButton fallbackHref={`/projects/${projectId}`} />
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 时间线

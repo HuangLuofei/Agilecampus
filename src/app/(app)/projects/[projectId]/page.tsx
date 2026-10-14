@@ -88,9 +88,9 @@ export default async function ProjectPage({
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
 
   return (
-    <main className="mx-auto max-w-5xl space-y-8 py-8">
-      <BackButton fallbackHref="/projects" />
-      <header>
+    <main className="mx-auto max-w-5xl space-y-8">
+      <header className="space-y-3">
+        <BackButton fallbackHref="/projects" />
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-display text-2xl font-semibold text-ink">{project.name}</h1>
           <div className="flex shrink-0 gap-2">

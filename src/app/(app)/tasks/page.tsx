@@ -38,12 +38,14 @@ export default async function MyTasksPage({
   });
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 py-8">
-      <BackButton fallbackHref="/projects" />
-      <div>
-        <h1 className="font-display text-2xl font-semibold text-ink">我的任务</h1>
-        <p className="mt-1 text-sm text-ink-faint">分配给我、尚未完成的任务</p>
-      </div>
+    <main className="mx-auto max-w-3xl space-y-6">
+      <header className="space-y-3">
+        <BackButton fallbackHref="/projects" />
+        <div>
+          <h1 className="font-display text-2xl font-semibold text-ink">我的任务</h1>
+          <p className="mt-1 text-sm text-ink-faint">分配给我、尚未完成的任务</p>
+        </div>
+      </header>
 
       <div className="flex flex-wrap gap-2">
         <TaskTab href="/tasks" active={status === "all"}>

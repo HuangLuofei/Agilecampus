@@ -33,7 +33,7 @@ export default async function WorkbenchPage({
   }));
 
   return (
-    <main className="space-y-6 py-8">
+    <main className="space-y-6">
       {/* 标题 + 新建 */}
       <div className="flex items-end justify-between gap-4">
         <div>

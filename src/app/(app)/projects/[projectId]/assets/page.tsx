@@ -19,8 +19,8 @@ export default async function AssetsPage({
   if (!access) notFound();
 
   return (
-    <main className="mx-auto max-w-4xl space-y-6 py-8">
-      <header className="space-y-1">
+    <main className="mx-auto max-w-4xl space-y-6">
+      <header className="space-y-3">
         <BackButton fallbackHref={`/projects/${projectId}`} />
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 资产管理

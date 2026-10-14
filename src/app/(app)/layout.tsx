@@ -52,7 +52,7 @@ export default async function AppLayout({
             </div>
           </div>
         )}
-        <div className="mx-auto w-full max-w-6xl p-6">{children}</div>
+        <div className="mx-auto w-full max-w-6xl px-6 py-8">{children}</div>
       </div>
     </div>
   );

@@ -47,7 +47,7 @@ export default async function TeamHomePage({
   const activeUsages = resourceResult.usages.filter((u) => u.active);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 py-8">
+    <main className="mx-auto max-w-3xl space-y-8">
       {/* 头部 */}
       <header>
         <div className="flex items-center gap-2">

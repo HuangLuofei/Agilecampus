@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
@@ -7,6 +6,7 @@ import { db } from "@/db";
 import { teams } from "@/db/schema";
 import { getTeamMembership } from "@/lib/team";
 import { listTeamResourceUsages } from "@/lib/resource";
+import { BackButton } from "@/components/back-button";
 import { ResourceForm } from "./resource-form";
 import { endResourceAction } from "./actions";
 
@@ -43,11 +43,9 @@ export default async function ResourcesPage({
   const canEnd = (userId: string) => userId === session.user.id || me.role === "admin";
 
   return (
-    <main className="mx-auto max-w-3xl space-y-8 py-8">
-      <header className="space-y-1">
-        <Link href={`/teams/${teamId}`} className="text-xs text-ink-soft hover:text-primary">
-          ← 团队主页
-        </Link>
+    <main className="mx-auto max-w-3xl space-y-8">
+      <header className="space-y-3">
+        <BackButton fallbackHref={`/teams/${teamId}`} label="返回团队" />
         <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 资源占用</h1>
         <p className="text-sm text-ink-soft">
           登记谁在何时占用了哪项共享资源。当前{" "}

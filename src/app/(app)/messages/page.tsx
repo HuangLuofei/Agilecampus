@@ -19,7 +19,7 @@ export default async function MessagesPage({
   const roomId = typeof params.room === "string" ? params.room : null;
 
   return (
-    <main className="mx-auto max-w-5xl py-8">
+    <main className="mx-auto max-w-5xl">
       {tab === "chat" ? (
         <ChatTab
           userId={session.user.id}

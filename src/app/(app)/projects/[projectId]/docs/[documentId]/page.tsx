@@ -31,8 +31,8 @@ export default async function DocViewPage({
   if (!doc || doc.projectId !== projectId) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 py-8">
-      <header className="space-y-1">
+    <main className="mx-auto max-w-3xl space-y-6">
+      <header className="space-y-3">
         <BackButton fallbackHref={`/projects/${projectId}/docs`} />
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-display text-2xl font-semibold text-ink">{doc.title}</h1>

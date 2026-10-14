@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { z } from "zod";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getProjectForUser } from "@/lib/project";
 import { getDocument } from "@/lib/document";
+import { BackButton } from "@/components/back-button";
 import { DocEditor } from "../../doc-editor";
 
 export default async function DocEditPage({
@@ -24,14 +24,9 @@ export default async function DocEditPage({
   if (!doc || doc.projectId !== projectId) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 py-8">
-      <header className="space-y-1">
-        <Link
-          href={`/projects/${projectId}/docs/${documentId}`}
-          className="text-xs text-ink-soft hover:text-primary"
-        >
-          ← 返回文档
-        </Link>
+    <main className="mx-auto max-w-3xl space-y-6">
+      <header className="space-y-3">
+        <BackButton fallbackHref={`/projects/${projectId}/docs/${documentId}`} label="返回文档" />
         <h1 className="font-display text-2xl font-semibold text-ink">编辑文档</h1>
       </header>
 

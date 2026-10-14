@@ -42,9 +42,11 @@ export default async function MembersPage({
   const isAdmin = me.role === "admin";
 
   return (
-    <main className="mx-auto max-w-2xl space-y-6 py-8">
-      <BackButton fallbackHref={`/teams/${teamId}`} />
-      <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 成员</h1>
+    <main className="mx-auto max-w-2xl space-y-6">
+      <header className="space-y-3">
+        <BackButton fallbackHref={`/teams/${teamId}`} />
+        <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 成员</h1>
+      </header>
       <ul className="space-y-2">
         {members.map((m) => (
           <li key={m.userId} className="ac-card flex items-center justify-between p-4">

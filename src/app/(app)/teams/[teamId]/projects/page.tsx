@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { getTeamMembership } from "@/lib/team";
 import { listTeamProjects } from "@/lib/project";
+import { BackButton } from "@/components/back-button";
 import { ProjectForm } from "./project-form";
 
 export default async function ProjectsPage({
@@ -23,11 +24,11 @@ export default async function ProjectsPage({
   const isAdmin = me.role === "admin";
 
   return (
-    <main className="mx-auto max-w-2xl space-y-8 py-8">
-      <Link href={`/teams/${teamId}`} className="text-xs text-ink-soft hover:text-primary">
-        ← 团队主页
-      </Link>
-      <h1 className="font-display text-2xl font-semibold text-ink">项目</h1>
+    <main className="mx-auto max-w-2xl space-y-8">
+      <header className="space-y-3">
+        <BackButton fallbackHref={`/teams/${teamId}`} label="返回团队" />
+        <h1 className="font-display text-2xl font-semibold text-ink">项目</h1>
+      </header>
       <ul className="space-y-2">
         {projects.map((p) => (
           <li key={p.id} className="ac-card p-4">

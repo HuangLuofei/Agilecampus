@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getTaskEventForUser, listTaskEventComments } from "@/lib/activity";
 import { AppError } from "@/lib/errors";
+import { BackButton } from "@/components/back-button";
 import { ChangeComments } from "./change-comments";
 import { MarkTaskEventRead } from "./mark-read";
 
@@ -35,16 +36,11 @@ export default async function ChangeDetailPage({
   const comments = await listTaskEventComments(session.user.id, eventId);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 py-8">
+    <main className="mx-auto max-w-3xl space-y-6">
       <MarkTaskEventRead eventId={eventId} />
 
-      <header className="space-y-1">
-        <Link
-          href="/messages?tab=notifications"
-          className="text-xs text-ink-soft hover:text-primary"
-        >
-          ← 返回通知
-        </Link>
+      <header className="space-y-3">
+        <BackButton fallbackHref="/messages?tab=notifications" label="返回通知" />
         <h1 className="font-display text-2xl font-semibold text-ink">变更详情</h1>
         <p className="text-xs text-ink-faint">
           {actorName} · 项目：{projectName} · {fmtTime(event.createdAt)}

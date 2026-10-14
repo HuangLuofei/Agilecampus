@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { z } from "zod";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
@@ -8,6 +7,7 @@ import {
   listAnnouncementComments,
 } from "@/lib/announcement";
 import { AppError } from "@/lib/errors";
+import { BackButton } from "@/components/back-button";
 import { AnnouncementComments } from "./announcement-comments";
 import { MarkAnnouncementRead } from "./mark-read";
 
@@ -42,15 +42,10 @@ export default async function AnnouncementDetailPage({
   const readNames = readStats.readers.filter((r) => r.isRead).map((r) => r.name);
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 py-8">
+    <main className="mx-auto max-w-3xl space-y-6">
       <MarkAnnouncementRead announcementId={announcementId} />
-      <header className="space-y-1">
-        <Link
-          href="/messages?tab=notifications"
-          className="text-xs text-ink-soft hover:text-primary"
-        >
-          ← 返回通知
-        </Link>
+      <header className="space-y-3">
+        <BackButton fallbackHref="/messages?tab=notifications" label="返回通知" />
         <h1 className="font-display text-2xl font-semibold text-ink">{announcement.title}</h1>
         <p className="text-xs text-ink-faint">
           发布者：{authorName} · 项目：{projectName} · {fmtTime(announcement.createdAt)}
