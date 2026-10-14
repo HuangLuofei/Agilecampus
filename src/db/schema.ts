@@ -9,6 +9,7 @@ import {
   date,
   doublePrecision,
   index,
+  integer,
   jsonb,
   boolean,
   bigint,
@@ -306,6 +307,29 @@ export const taskLabels = pgTable(
   (t) => [
     primaryKey({ columns: [t.taskId, t.labelId] }),
     index("task_labels_label_idx").on(t.labelId),
+  ],
+);
+
+// 任务多负责人（多对多）。一个任务可同时指派给多人。
+// tasks.assigneeId 保留为「主负责人」= 本集合的首位（见 lib/task.ts setTaskAssignees），
+// 供既有的单值读取路径（拖拽落列、飞书卡片、变更留痕）与历史数据平滑兼容。
+export const taskAssignees = pgTable(
+  "task_assignees",
+  {
+    taskId: uuid("task_id")
+      .notNull()
+      .references(() => tasks.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // 指派顺序：首位即主负责人（同步到 tasks.assigneeId）。
+    // 必须显式落库——created_at 取事务时间，同一条 INSERT 的 N 行完全相同，排序不可靠。
+    position: integer("position").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.taskId, t.userId] }),
+    index("task_assignees_user_idx").on(t.userId),
   ],
 );
 

@@ -1,4 +1,4 @@
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
   chatRooms,
@@ -48,6 +48,35 @@ export async function listTeamProjects(actorId: string, teamId: string) {
     .from(projects)
     .where(eq(projects.teamId, teamId))
     .orderBy(desc(projects.createdAt));
+}
+
+// 团队主页用：某团队的项目 + 任务统计（进度条）
+export async function listTeamProjectsWithStats(actorId: string, teamId: string) {
+  await requireTeamRole(actorId, teamId, ["admin", "teacher", "student"]);
+  const rows = await db
+    .select()
+    .from(projects)
+    .where(eq(projects.teamId, teamId))
+    .orderBy(desc(projects.createdAt));
+
+  if (rows.length === 0) return [];
+
+  const stats = await db
+    .select({
+      projectId: tasks.projectId,
+      status: tasks.status,
+      count: sql<number>`count(*)::int`,
+    })
+    .from(tasks)
+    .where(inArray(tasks.projectId, rows.map((r) => r.id)))
+    .groupBy(tasks.projectId, tasks.status);
+
+  return rows.map((p) => {
+    const mine = stats.filter((s) => s.projectId === p.id);
+    const total = mine.reduce((n, s) => n + s.count, 0);
+    const doneCount = mine.find((s) => s.status === "done")?.count ?? 0;
+    return { ...p, taskTotal: total, doneCount };
+  });
 }
 
 // 项目编辑/归档：仅团队 admin 可动（与 createProject 同一权限口径）
@@ -176,6 +205,23 @@ export async function listMyTeamsWithProjects(actorId: string) {
     role: m.role,
     projects: byTeam.get(m.id) ?? [],
   }));
+}
+
+// 我作为团队管理员（team_role=admin）负责的项目 id 集合。
+// 用于「管理者视角」的跨任务范围口径：不只看分配给我的任务，还要盯住我管理项目里的全部任务。
+export async function listManagedProjectIds(actorId: string): Promise<string[]> {
+  const adminTeams = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .where(and(eq(teamMembers.userId, actorId), eq(teamMembers.role, "admin")));
+  const teamIds = adminTeams.map((t) => t.teamId);
+  if (teamIds.length === 0) return [];
+
+  const rows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(inArray(projects.teamId, teamIds));
+  return rows.map((r) => r.id);
 }
 
 // 跨团队聚合：我所在全部团队的项目 + 团队名 + 任务统计

@@ -25,21 +25,27 @@ export default async function AppLayout({
   const dueParts: string[] = [];
   if (due.overdue > 0) dueParts.push(`${due.overdue} 个任务已逾期`);
   if (due.dueSoon > 0) dueParts.push(`${due.dueSoon} 个任务即将到期`);
+  // 管理者口径：其中有多少条来自「我管理的项目、但不由我负责」的任务
+  const managedHint = due.managed > 0 ? `（含我管理项目内的 ${due.managed} 个）` : "";
 
   return (
     <div className="flex min-h-screen">
       <AppSidebar
         userName={session.user.name}
         teams={teams}
-        unread={unreadCount + unreadChats}
+        unreadChats={unreadChats}
+        unreadNotifications={unreadCount}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {dueParts.length > 0 && (
-          <div className="border-b border-line bg-high-soft">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-2 text-sm text-high">
-              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-high" />
+          <div className="border-b border-line bg-alert-soft">
+            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-2 text-sm text-alert">
+              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-alert" />
               <span className="font-medium">到期提醒</span>
-              <span>{dueParts.join("，")}</span>
+              <span>
+                {dueParts.join("，")}
+                {managedHint}
+              </span>
               <Link href="/messages?tab=notifications" className="underline hover:no-underline">
                 查看提醒
               </Link>

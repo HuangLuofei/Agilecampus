@@ -1,9 +1,9 @@
-import Link from "next/link";
 import { z } from "zod";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getProjectForUser } from "@/lib/project";
 import { AssetPanel } from "./asset-panel";
+import { BackButton } from "@/components/back-button";
 
 export default async function AssetsPage({
   params,
@@ -21,9 +21,7 @@ export default async function AssetsPage({
   return (
     <main className="mx-auto max-w-4xl space-y-6 py-8">
       <header className="space-y-1">
-        <Link href={`/projects/${projectId}`} className="text-xs text-ink-soft hover:text-primary">
-          ← 返回项目
-        </Link>
+        <BackButton fallbackHref={`/projects/${projectId}`} />
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 资产管理
         </h1>

@@ -53,7 +53,7 @@ export default async function WorkbenchPage({
         <>
           {/* 统计卡片 */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard href="/projects" icon="📁" value={stats.projectCount} label="我的项目" tone="blue" />
+            <KpiCard href="/teams" icon="📁" value={stats.projectCount} label="我的项目" tone="blue" />
             <KpiCard href="/tasks?status=doing" icon="✓" value={stats.doingCount} label="进行中任务" tone="green" />
             <KpiCard href="/tasks?status=todo" icon="⏰" value={stats.todoCount} label="待我处理" tone="orange" />
             <KpiCard href="/tasks?status=overdue" icon="!" value={stats.overdueCount} label="已逾期" tone="red" />
@@ -82,7 +82,13 @@ export default async function WorkbenchPage({
                       <span aria-hidden className="h-4 w-1 rounded-full bg-primary" />
                       <h2 className="font-display text-base font-semibold text-ink">{team.name}</h2>
                       <RoleBadge role={team.role} />
-                      <span className="text-xs text-ink-faint">成员 {team.members.length}</span>
+                      <Link
+                        href={`/teams/${team.id}/members`}
+                        title="查看团队成员"
+                        className="text-xs text-ink-faint hover:text-primary hover:underline"
+                      >
+                        成员 {team.members.length}
+                      </Link>
                       <Link
                         href={`/teams/${team.id}/members`}
                         className="ml-auto text-sm text-ink-faint hover:text-primary"
@@ -95,6 +101,7 @@ export default async function WorkbenchPage({
                         <ProjectCard
                           key={p.id}
                           project={p}
+                          teamId={team.id}
                           members={membersByTeam.get(team.id) ?? []}
                           today={today}
                         />
@@ -149,7 +156,7 @@ export default async function WorkbenchPage({
                           {t.title}
                         </Link>
                         <span
-                          className={`shrink-0 text-[11px] ${t.overdue ? "text-high" : "text-ink-faint"}`}
+                          className={`shrink-0 text-[11px] ${t.overdue ? "text-alert" : "text-ink-faint"}`}
                         >
                           {t.overdue ? "已逾期" : t.dueLabel}
                         </span>
@@ -183,7 +190,7 @@ function KpiCard({
     blue: "bg-primary-soft text-primary",
     green: "bg-done/15 text-done",
     orange: "bg-accent-soft text-accent",
-    red: "bg-high-soft text-high",
+    red: "bg-alert-soft text-alert",
   }[tone];
   return (
     <Link
@@ -226,6 +233,7 @@ function FilterChip({
 
 function ProjectCard({
   project: p,
+  teamId,
   members,
   today,
 }: {
@@ -238,6 +246,7 @@ function ProjectCard({
     taskTotal: number;
     doneCount: number;
   };
+  teamId: string;
   members: { id: string; name: string }[];
   today: string;
 }) {
@@ -281,17 +290,19 @@ function ProjectCard({
       <div className="mt-3 flex items-center border-t border-line pt-3">
         <div className="flex">
           {members.slice(0, 4).map((m, i) => (
-            <span
+            <Link
               key={m.id}
-              title={m.name}
-              className="-ml-1.5 grid h-5 w-5 place-items-center rounded-full border-2 border-surface text-[9px] font-semibold text-white first:ml-0"
+              href={`/teams/${teamId}/members`}
+              title={`${m.name} · 查看团队成员`}
+              aria-label={`查看团队成员：${m.name}`}
+              className="relative -ml-1.5 grid h-5 w-5 place-items-center rounded-full border-2 border-surface text-[9px] font-semibold text-white transition-transform first:ml-0 hover:z-10 hover:-translate-y-0.5 hover:border-primary"
               style={{ backgroundColor: AVATAR_COLORS[i % AVATAR_COLORS.length] }}
             >
               {m.name.trim()?.[0] ?? "?"}
-            </span>
+            </Link>
           ))}
         </div>
-        <span className={`ml-auto text-xs ${overdue ? "text-high" : "text-ink-faint"}`}>
+        <span className={`ml-auto text-xs ${overdue ? "text-alert" : "text-ink-faint"}`}>
           {overdue ? "已逾期" : dueLabel}
         </span>
       </div>

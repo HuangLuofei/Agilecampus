@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { projects, taskEvents, tasks, teamMembers, users } from "@/db/schema";
 import { toDayString, todayStartMs } from "./due";
 import { listMyProjects, listMyTeamsWithProjects } from "./project";
+import { isAssigneeOf } from "./task";
 
 const ACTION_LABEL: Record<string, string> = {
   created: "创建了任务",
@@ -34,24 +35,25 @@ function timeAgo(d: Date): string {
   return d.toLocaleDateString("zh-CN");
 }
 
-// 我的任务口径：进行中=doing、待我处理=todo、已逾期=非完成且超期，均只统计分配给我的任务
+// 我的任务口径：进行中=doing、待我处理=todo、已逾期=非完成且超期，均只统计指派给我的任务。
+// 「指派给我」按多负责人集合判定（isAssigneeOf：主负责人 ∪ 关联表）。
 async function getTaskStats(actorId: string) {
   const today = toDayString(todayStartMs());
   const [doing, todo, overdue] = await Promise.all([
     db
       .select({ c: sql<number>`count(*)::int` })
       .from(tasks)
-      .where(and(eq(tasks.assigneeId, actorId), eq(tasks.status, "doing"))),
+      .where(and(isAssigneeOf(actorId), eq(tasks.status, "doing"))),
     db
       .select({ c: sql<number>`count(*)::int` })
       .from(tasks)
-      .where(and(eq(tasks.assigneeId, actorId), eq(tasks.status, "todo"))),
+      .where(and(isAssigneeOf(actorId), eq(tasks.status, "todo"))),
     db
       .select({ c: sql<number>`count(*)::int` })
       .from(tasks)
       .where(
         and(
-          eq(tasks.assigneeId, actorId),
+          isAssigneeOf(actorId),
           ne(tasks.status, "done"),
           isNotNull(tasks.dueDate),
           lt(tasks.dueDate, today),
@@ -79,7 +81,7 @@ export async function listMyTasks(actorId: string) {
     })
     .from(tasks)
     .innerJoin(projects, eq(tasks.projectId, projects.id))
-    .where(and(eq(tasks.assigneeId, actorId), ne(tasks.status, "done")))
+    .where(and(isAssigneeOf(actorId), ne(tasks.status, "done")))
     .orderBy(asc(tasks.dueDate));
 }
 
@@ -127,7 +129,7 @@ async function listTodos(actorId: string) {
       projectId: tasks.projectId,
     })
     .from(tasks)
-    .where(and(eq(tasks.assigneeId, actorId), ne(tasks.status, "done")))
+    .where(and(isAssigneeOf(actorId), ne(tasks.status, "done")))
     .limit(40);
 
   const today = toDayString(todayStartMs());

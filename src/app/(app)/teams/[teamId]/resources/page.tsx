@@ -45,8 +45,8 @@ export default async function ResourcesPage({
   return (
     <main className="mx-auto max-w-3xl space-y-8 py-8">
       <header className="space-y-1">
-        <Link href="/teams" className="text-xs text-ink-soft hover:text-primary">
-          ← 我的团队
+        <Link href={`/teams/${teamId}`} className="text-xs text-ink-soft hover:text-primary">
+          ← 团队主页
         </Link>
         <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 资源占用</h1>
         <p className="text-sm text-ink-soft">

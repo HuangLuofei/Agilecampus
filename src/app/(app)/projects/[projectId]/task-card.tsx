@@ -12,6 +12,7 @@ import {
 import { LABEL_COLOR_CLASS } from "@/lib/board-columns";
 import { classifyDue, todayStartMs } from "@/lib/due";
 import type { BoardTask } from "./board";
+import { MemberPicker } from "./member-picker";
 import { TaskAssets } from "./assets/task-assets";
 
 export type Option = { id: string; name: string; skillTags?: string[] };
@@ -61,6 +62,18 @@ export function TaskCard({
     .map((d) => allTasks.find((t) => t.id === d.successorId)?.title)
     .filter(Boolean);
   const dueState = classifyDue(task.dueDate, task.status, todayStartMs());
+  // 多负责人：优先按 id 集合映射成员名（拖拽落列后乐观更新也能立刻显示新负责人）
+  const assigneeNames =
+    task.assigneeIds.length > 0
+      ? task.assigneeIds.map(
+          (id) =>
+            members.find((m) => m.id === id)?.name ??
+            task.assignees.find((a) => a.id === id)?.name ??
+            "某成员",
+        )
+      : task.assigneeName
+        ? [task.assigneeName]
+        : [];
 
   return (
     <div
@@ -85,12 +98,12 @@ export function TaskCard({
       >
         <p className="font-medium text-ink">{task.title}</p>
         <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
-          <span>{task.assigneeName ?? "未分配"}</span>
+          <span>{assigneeNames.length > 0 ? assigneeNames.join("、") : "未分配"}</span>
           {(task.startDate || task.dueDate) && (
             <span
               className={
                 dueState === "overdue"
-                  ? "font-medium text-high"
+                  ? "font-medium text-alert"
                   : dueState === "soon"
                     ? "font-medium text-medium"
                     : ""
@@ -102,7 +115,7 @@ export function TaskCard({
           {dueState !== "ok" && (
             <span
               className={`ac-badge ${
-                dueState === "overdue" ? "bg-high-soft text-high" : "bg-medium-soft text-medium"
+                dueState === "overdue" ? "bg-alert-soft text-alert" : "bg-medium-soft text-medium"
               }`}
             >
               {dueState === "overdue" ? "逾期" : "临期"}
@@ -194,10 +207,6 @@ function EditModal({
     null,
   );
 
-  // 负责人受控：据以展示其技能标签，供改派时参考分工
-  const [assigneeId, setAssigneeId] = useState(task.assigneeId ?? "");
-  const assignee = members.find((m) => m.id === assigneeId) ?? null;
-
   // 保存成功（action 回 { ok: true }）即关窗
   useEffect(() => {
     if (updateState && "ok" in updateState) onClose();
@@ -265,59 +274,40 @@ function EditModal({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-2.5">
-            <Field label="负责人">
-              <select
-                name="assigneeId"
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="ac-field text-sm"
-              >
-                <option value="">未分配</option>
-                {members.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                    {m.skillTags?.length ? `（${m.skillTags.join("/")}）` : ""}
-                  </option>
-                ))}
-              </select>
-              {assignee && (
-                <span className="flex flex-wrap items-center gap-1 text-xs text-ink-soft">
-                  {assignee.skillTags?.length ? (
-                    assignee.skillTags.map((t) => (
-                      <span key={t} className="ac-badge bg-primary-soft text-primary">
-                        {t}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-ink-faint">该成员暂未填写技能标签</span>
-                  )}
-                </span>
-              )}
+          <div className="space-y-2.5">
+            <Field label="负责人（可多选）">
+              <MemberPicker
+                members={members}
+                name="assigneeIds"
+                defaultSelected={task.assigneeIds.length > 0 ? task.assigneeIds : []}
+                emptyHint="未选择，保存后为未分配"
+              />
             </Field>
-            <Field label="里程碑">
-              <select name="milestoneId" defaultValue={task.milestoneId ?? ""} className="ac-field text-sm">
-                <option value="">无里程碑</option>
-                {milestones.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-            <Field label="优先级">
-              <select name="priority" defaultValue={task.priority} className="ac-field text-sm">
-                <option value="low">低</option>
-                <option value="medium">中</option>
-                <option value="high">高</option>
-              </select>
-            </Field>
-            <Field label="起始日">
-              <input type="date" name="startDate" defaultValue={task.startDate ?? ""} className="ac-field text-sm" />
-            </Field>
-            <Field label="截止日">
-              <input type="date" name="dueDate" defaultValue={task.dueDate ?? ""} className="ac-field text-sm" />
-            </Field>
+            <div className="grid grid-cols-2 gap-2.5">
+              <Field label="里程碑">
+                <select name="milestoneId" defaultValue={task.milestoneId ?? ""} className="ac-field text-sm">
+                  <option value="">无里程碑</option>
+                  {milestones.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="优先级">
+                <select name="priority" defaultValue={task.priority} className="ac-field text-sm">
+                  <option value="low">低</option>
+                  <option value="medium">中</option>
+                  <option value="high">高</option>
+                </select>
+              </Field>
+              <Field label="起始日">
+                <input type="date" name="startDate" defaultValue={task.startDate ?? ""} className="ac-field text-sm" />
+              </Field>
+              <Field label="截止日">
+                <input type="date" name="dueDate" defaultValue={task.dueDate ?? ""} className="ac-field text-sm" />
+              </Field>
+            </div>
           </div>
 
           {allLabels.length > 0 && (
