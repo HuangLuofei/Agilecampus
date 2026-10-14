@@ -15,6 +15,7 @@ export default function RegisterPage() {
       <h1 className="font-display text-2xl font-semibold text-ink">注册 AgileCampus</h1>
       <form action={formAction} className="space-y-3">
         <input name="name" placeholder="姓名" className="ac-field" />
+        <input name="studentId" placeholder="学号（14 位数字，用于登录）" className="ac-field" />
         <input name="email" type="email" placeholder="邮箱" className="ac-field" />
         <input name="password" type="password" placeholder="密码（至少 8 位）" className="ac-field" />
         {state?.error && <p className="text-sm text-high">{state.error}</p>}

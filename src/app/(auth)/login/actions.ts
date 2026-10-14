@@ -17,7 +17,7 @@ export async function loginAction(
     });
     return null;
   } catch (e) {
-    if (e instanceof AuthError) return { error: "邮箱或密码不正确" };
+    if (e instanceof AuthError) return { error: "账号（邮箱/学号）或密码不正确" };
     throw e; // signIn 成功时抛出的 redirect 必须继续上抛
   }
 }

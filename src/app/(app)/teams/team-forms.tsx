@@ -27,8 +27,10 @@ export function TeamForms() {
         <h2 className="font-medium text-ink">加入团队</h2>
         <input name="inviteCode" placeholder="邀请码" className="ac-field" />
         {joinState?.error && <p className="text-sm text-high">{joinState.error}</p>}
+        {joinState?.success && <p className="text-sm text-done">{joinState.success}</p>}
+        <p className="text-xs text-ink-faint">提交后需组长审核通过才能加入</p>
         <button disabled={joining} className="ac-btn">
-          加入
+          {joining ? "提交中…" : "申请加入"}
         </button>
       </form>
     </div>

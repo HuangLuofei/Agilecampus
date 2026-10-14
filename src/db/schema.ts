@@ -34,6 +34,9 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "task_due_soon",
   "asset_created",
   "chat_mentioned",
+  "team_join_requested",
+  "team_join_approved",
+  "team_join_rejected",
 ]);
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
@@ -63,6 +66,8 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
+  // 学号（可空=老账号未补填；唯一，登录时可作为「邮箱/学号」二选一标识）
+  studentId: text("student_id").unique(),
   // 成员自报技能标签（自由文本数组，分工参考，非权限）；清洗/限量在 lib/skill-tags.ts
   skillTags: text("skill_tags").array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp("created_at").notNull().defaultNow(),
@@ -89,6 +94,37 @@ export const teamMembers = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (t) => [uniqueIndex("team_members_team_user_unique").on(t.teamId, t.userId)],
+);
+
+// 邀请码加入的审批流：凭有效邀请码提交申请 → 团队 admin 审核通过才写入 team_members
+export const teamJoinRequestStatusEnum = pgEnum("team_join_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+]);
+export type TeamJoinRequestStatus = (typeof teamJoinRequestStatusEnum.enumValues)[number];
+
+export const teamJoinRequests = pgTable(
+  "team_join_requests",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: teamJoinRequestStatusEnum("status").notNull().default("pending"),
+    reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
+    reviewedAt: timestamp("reviewed_at"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [
+    // 同一人对同一团队只允许一条待审申请（部分唯一索引：仅约束 pending 行）
+    uniqueIndex("team_join_requests_pending_unique")
+      .on(t.teamId, t.userId)
+      .where(sql`status = 'pending'`),
+  ],
 );
 
 export const projectStatusEnum = pgEnum("project_status", ["active", "archived"]);
