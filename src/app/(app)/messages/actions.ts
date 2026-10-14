@@ -140,6 +140,7 @@ export async function markAnnouncementReadAction(announcementId: string): Promis
   if (!z.uuid().safeParse(announcementId).success) return { error: "参数无效" };
 
   await markAnnouncementRead(session.user.id, announcementId);
+  revalidatePath("/", "layout");
   revalidatePath("/messages");
   revalidatePath(`/messages/announcements/${announcementId}`);
   return null;
@@ -151,6 +152,7 @@ export async function markTaskEventReadAction(eventId: string): Promise<FormStat
   if (!z.uuid().safeParse(eventId).success) return { error: "参数无效" };
 
   await markTaskEventNotificationRead(session.user.id, eventId);
+  revalidatePath("/", "layout");
   revalidatePath("/messages");
   revalidatePath(`/messages/changes/${eventId}`);
   return null;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Avatar } from "./avatar";
 
 export type ChatOverview = {
@@ -65,6 +66,7 @@ export function ChatApp({
   initial: ChatOverview;
   initialRoomId?: string | null;
 }) {
+  const router = useRouter();
   const [groupRooms, setGroupRooms] = useState(initial.groupRooms);
   const [dmRooms, setDmRooms] = useState(initial.dmRooms);
   const [selected, setSelected] = useState<Room | null>(null);
@@ -76,6 +78,7 @@ export function ChatApp({
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const unreadTotalRef = useRef<number | null>(null);
 
   function clearUnread(roomId: string) {
     const zero = (map: Record<string, { roomId: string; unread: number }>) => {
@@ -131,13 +134,20 @@ export function ChatApp({
     let cancelled = false;
     async function poll() {
       try {
-        const res = await fetch(`/api/messages?roomId=${selected!.roomId}`);
+        const res = await fetch(`/api/messages?roomId=${selected!.roomId}`, { cache: "no-store" });
         if (!res.ok || cancelled) return;
         const data = await res.json();
+        if (cancelled) return;
         setMessages(data.messages);
         setMembers(data.members ?? []);
         setGroupRooms(data.groupRooms);
         setDmRooms(data.dmRooms);
+        // 已读已在服务端确认，同时更新 layout 内的「消息／对话」角标。
+        // 首次拉取也刷新，避免侧栏沿用上一个页面的未读数；后续仅在数量变化时刷新。
+        if (unreadTotalRef.current !== data.unreadTotal) {
+          unreadTotalRef.current = data.unreadTotal;
+          router.refresh();
+        }
       } catch {
         /* 网络抖动忽略，下一轮再试 */
       }
@@ -148,7 +158,7 @@ export function ChatApp({
       cancelled = true;
       clearInterval(id);
     };
-  }, [selected]);
+  }, [selected, router]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
