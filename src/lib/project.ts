@@ -224,6 +224,22 @@ export async function listManagedProjectIds(actorId: string): Promise<string[]> 
   return rows.map((r) => r.id);
 }
 
+// 我所在全部团队下的项目 id 集合（我的资产跨项目聚合范围）
+export async function listMyProjectIds(actorId: string): Promise<string[]> {
+  const memberships = await db
+    .select({ teamId: teamMembers.teamId })
+    .from(teamMembers)
+    .where(eq(teamMembers.userId, actorId));
+  const teamIds = memberships.map((m) => m.teamId);
+  if (teamIds.length === 0) return [];
+
+  const rows = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(inArray(projects.teamId, teamIds));
+  return rows.map((r) => r.id);
+}
+
 // 跨团队聚合：我所在全部团队的项目 + 团队名 + 任务统计
 export async function listMyProjects(actorId: string) {
   const memberships = await db
