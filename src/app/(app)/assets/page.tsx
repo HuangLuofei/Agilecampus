@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { listMyProjects } from "@/lib/project";
 import { listMyAssets, type MyAssetRow } from "@/lib/my-assets";
 import { formatSize } from "@/app/(app)/projects/[projectId]/assets/asset-types";
+import { BackButton } from "@/components/back-button";
 
 function fmtDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -64,6 +65,7 @@ export default async function MyAssetsPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-3">
+        <BackButton fallbackHref="/projects" />
         <h1 className="font-display text-2xl font-semibold text-ink">我的资产</h1>
         <p className="text-sm text-ink-soft">我参与的全部项目下的云文档与资料。</p>
       </header>
