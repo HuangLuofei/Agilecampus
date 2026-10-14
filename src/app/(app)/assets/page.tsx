@@ -29,7 +29,7 @@ function highlight(text: string, q: string): React.ReactNode {
     }
     if (idx > i) out.push(text.slice(i, idx));
     out.push(
-      <mark key={k++} className="rounded bg-accent-soft px-0.5 text-ink">
+      <mark key={k++} className="rounded bg-accent/35 px-0.5 font-semibold text-ink">
         {text.slice(idx, idx + term.length)}
       </mark>,
     );
