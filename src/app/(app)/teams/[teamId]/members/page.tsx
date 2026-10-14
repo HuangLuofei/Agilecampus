@@ -6,6 +6,7 @@ import { db } from "@/db";
 import { teamMembers, teams, users } from "@/db/schema";
 import { getTeamMembership } from "@/lib/team";
 import { updateRoleAction } from "./actions";
+import { BackButton } from "@/components/back-button";
 
 export default async function MembersPage({
   params,
@@ -42,6 +43,7 @@ export default async function MembersPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 py-8">
+      <BackButton fallbackHref={`/teams/${teamId}`} />
       <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 成员</h1>
       <ul className="space-y-2">
         {members.map((m) => (

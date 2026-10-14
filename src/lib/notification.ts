@@ -1,6 +1,13 @@
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { notifications, projects, tasks, users, type NotificationType } from "@/db/schema";
+import {
+  notifications,
+  projects,
+  taskAssignees,
+  tasks,
+  users,
+  type NotificationType,
+} from "@/db/schema";
 import { AppError } from "./errors";
 import { listTeamMembers } from "./team";
 
@@ -105,7 +112,14 @@ export async function notifyTaskParticipants(input: {
     .where(eq(tasks.id, input.taskId));
   if (!task) return;
 
+  // 收件人含全部负责人（多对多关联表），并保留主负责人字段兜底历史行
+  const assigneeRows = await db
+    .select({ userId: taskAssignees.userId })
+    .from(taskAssignees)
+    .where(eq(taskAssignees.taskId, input.taskId));
+
   const recipients = new Set<string>();
+  for (const a of assigneeRows) recipients.add(a.userId);
   if (task.assigneeId) recipients.add(task.assigneeId);
   if (task.createdById) recipients.add(task.createdById);
   for (const id of input.extraUserIds ?? []) recipients.add(id);

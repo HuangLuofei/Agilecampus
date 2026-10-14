@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { getProjectForUser } from "@/lib/project";
 import { listProjectDocuments, listDocumentCategories } from "@/lib/document";
 import { NewDocForm } from "./new-doc-form";
+import { BackButton } from "@/components/back-button";
 
 function fmtDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -38,9 +39,7 @@ export default async function DocsPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6 py-8">
       <header className="space-y-1">
-        <Link href={`/projects/${projectId}`} className="text-xs text-ink-soft hover:text-primary">
-          ← 返回项目
-        </Link>
+        <BackButton fallbackHref={`/projects/${projectId}`} />
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 文档
         </h1>

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { eq, sql } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { labels, taskLabels, teams } from "@/db/schema";
@@ -41,6 +42,9 @@ export default async function LabelsPage({
 
   return (
     <main className="mx-auto max-w-2xl space-y-6 py-8">
+      <Link href={`/teams/${teamId}`} className="text-xs text-ink-soft hover:text-primary">
+        ← 团队主页
+      </Link>
       <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 标签</h1>
       <p className="text-sm text-ink-soft">
         标签为团队共用，可贴在任意项目的任务上，用于筛选与分组。

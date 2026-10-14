@@ -146,16 +146,29 @@ function DraftCard({
 
   if (draft.tool === "decompose_tasks") {
     const d = data as {
-      tasks: { title: string; assigneeId?: string; priority?: string; dueDate?: string; milestoneId?: string }[];
+      tasks: {
+        title: string;
+        assigneeId?: string;
+        assigneeIds?: string[];
+        priority?: string;
+        dueDate?: string;
+        milestoneId?: string;
+      }[];
     };
     const setTask = (idx: number, patch: object) =>
       setData({ ...d, tasks: d.tasks.map((t, i) => (i === idx ? { ...t, ...patch } : t)) });
+    const nameOf = (id: string) => members.find((m) => m.id === id)?.name ?? "某成员";
     return (
       <CardShell title={`拆解任务（${d.tasks.length}）`} onConfirm={() => commit(projectId, "decompose_tasks", d)}>
         {d.tasks.map((t, idx) => (
-          <div key={idx} className="flex flex-wrap gap-1 border-b border-line pb-1">
+          <div key={idx} className="flex flex-wrap items-center gap-1 border-b border-line pb-1">
             <input value={t.title} onChange={(e) => setTask(idx, { title: e.target.value })} className="ac-field flex-1 text-xs" />
-            <select value={t.assigneeId ?? ""} onChange={(e) => setTask(idx, { assigneeId: e.target.value || undefined })} className="ac-field w-auto text-xs">
+            {/* AI 可能给出多负责人；此处下拉是「改为单一负责人」的快捷方式，选了即覆盖集合 */}
+            <select
+              value={t.assigneeId ?? ""}
+              onChange={(e) => setTask(idx, { assigneeId: e.target.value || undefined, assigneeIds: undefined })}
+              className="ac-field w-auto text-xs"
+            >
               <option value="">未分配</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -163,6 +176,11 @@ function DraftCard({
                 </option>
               ))}
             </select>
+            {t.assigneeIds && t.assigneeIds.length > 0 && (
+              <span className="text-xs text-ink-soft">
+                多人：{t.assigneeIds.map(nameOf).join("、")}
+              </span>
+            )}
             <select value={t.priority ?? "medium"} onChange={(e) => setTask(idx, { priority: e.target.value })} className="ac-field w-auto text-xs">
               <option value="low">低</option>
               <option value="medium">中</option>

@@ -16,12 +16,23 @@ export type FilterableTask = {
   title: string;
   description: string | null;
   assigneeId: string | null;
+  // 多负责人集合（新）。缺省时回退到 assigneeId，兼容既有单值数据与测试夹具。
+  assigneeIds?: string[] | null;
   priority: string;
   milestoneId: string | null;
   dueDate: string | null;
   status: string;
   labels: { id: string }[];
 };
+
+// 取任务的负责人集合：以 assigneeIds 为准，为空则回退单值 assigneeId
+export function assigneeIdsOf(t: {
+  assigneeIds?: string[] | null;
+  assigneeId?: string | null;
+}): string[] {
+  if (t.assigneeIds && t.assigneeIds.length > 0) return t.assigneeIds;
+  return t.assigneeId ? [t.assigneeId] : [];
+}
 
 const GROUPS: GroupBy[] = ["status", "assignee", "priority", "milestone"];
 const PRIORITIES = ["low", "medium", "high"];
@@ -82,7 +93,12 @@ export function applyFilters<T extends FilterableTask>(
 ): T[] {
   const q = f.q.trim().toLowerCase();
   return list.filter((t) => {
-    if (f.assignee.length && !f.assignee.includes(t.assigneeId ?? "none")) return false;
+    // 多负责人：命中集合中任一人即保留；"none" 命中无人负责的任务
+    if (f.assignee.length) {
+      const ids = assigneeIdsOf(t);
+      const hit = f.assignee.some((a) => (a === "none" ? ids.length === 0 : ids.includes(a)));
+      if (!hit) return false;
+    }
     if (f.priority.length && !f.priority.includes(t.priority)) return false;
     if (f.milestone.length && !f.milestone.includes(t.milestoneId ?? "none")) return false;
     if (f.label.length && !t.labels.some((l) => f.label.includes(l.id))) return false;

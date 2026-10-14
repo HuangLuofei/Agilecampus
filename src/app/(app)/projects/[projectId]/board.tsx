@@ -25,6 +25,9 @@ export type BoardTask = {
   dueDate: string | null;
   assigneeName: string | null;
   assigneeId: string | null;
+  // 多负责人：assigneeIds 为完整集合，assignees 带姓名（主负责人字段保留作兼容）
+  assigneeIds: string[];
+  assignees: { id: string; name: string }[];
   milestoneId: string | null;
   labels: { id: string; name: string; color: string }[];
 };
@@ -106,7 +109,19 @@ export function Board({
   const [optimisticTasks, moveOptimistic] = useOptimistic(
     tasks,
     (current, move: { taskId: string; patch: ColumnPatch }) =>
-      current.map((t) => (t.id === move.taskId ? { ...t, ...move.patch } : t)),
+      current.map((t) => {
+        if (t.id !== move.taskId) return t;
+        // 非负责人维度的落列：直接合并即可
+        if (move.patch.assigneeId === undefined) return { ...t, ...move.patch };
+        // 拖到某人列 = 改派给该人；同步多负责人集合，卡片才能立即显示新负责人
+        const id = move.patch.assigneeId;
+        return {
+          ...t,
+          ...move.patch,
+          assigneeIds: id ? [id] : [],
+          assignees: id ? [{ id, name: members.find((m) => m.id === id)?.name ?? "" }] : [],
+        };
+      }),
   );
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),

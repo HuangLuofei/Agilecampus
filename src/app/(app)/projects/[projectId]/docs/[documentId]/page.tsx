@@ -6,6 +6,7 @@ import { getProjectForUser } from "@/lib/project";
 import { getDocument } from "@/lib/document";
 import { MarkdownBody } from "../markdown";
 import { deleteDocumentAction } from "../actions";
+import { BackButton } from "@/components/back-button";
 
 function fmtTime(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -32,9 +33,7 @@ export default async function DocViewPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6 py-8">
       <header className="space-y-1">
-        <Link href={`/projects/${projectId}/docs`} className="text-xs text-ink-soft hover:text-primary">
-          ← 返回文档列表
-        </Link>
+        <BackButton fallbackHref={`/projects/${projectId}/docs`} />
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-display text-2xl font-semibold text-ink">{doc.title}</h1>
           <div className="flex shrink-0 gap-2">

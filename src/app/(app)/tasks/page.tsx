@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listMyTasks } from "@/lib/dashboard";
 import { toDayString, todayStartMs } from "@/lib/due";
+import { BackButton } from "@/components/back-button";
 
 const STATUS_LABEL: Record<string, string> = { todo: "待办", doing: "进行中", done: "已完成" };
 
@@ -38,6 +39,7 @@ export default async function MyTasksPage({
 
   return (
     <main className="mx-auto max-w-3xl space-y-6 py-8">
+      <BackButton fallbackHref="/projects" />
       <div>
         <h1 className="font-display text-2xl font-semibold text-ink">我的任务</h1>
         <p className="mt-1 text-sm text-ink-faint">分配给我、尚未完成的任务</p>
@@ -78,7 +80,7 @@ export default async function MyTasksPage({
                   <p className="mt-0.5 text-xs text-ink-faint">{t.projectName}</p>
                 </div>
                 <StatusBadge status={t.status} />
-                <span className={`w-24 shrink-0 text-right text-xs ${overdue ? "text-high" : "text-ink-faint"}`}>
+                <span className={`w-24 shrink-0 text-right text-xs ${overdue ? "text-alert" : "text-ink-faint"}`}>
                   {overdue ? "已逾期" : t.dueDate ?? "无截止"}
                 </span>
               </li>

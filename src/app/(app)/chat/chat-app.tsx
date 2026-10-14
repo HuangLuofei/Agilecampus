@@ -269,7 +269,6 @@ export function ChatApp({
   return (
     <div className="flex gap-4">
       <aside className="w-64 shrink-0 space-y-5">
-        <h1 className="font-display text-2xl font-semibold text-ink">对话</h1>
         {initial.projects.length === 0 ? (
           <p className="text-sm text-ink-soft">你还没有项目——加入团队并创建项目后即可对话。</p>
         ) : (
@@ -424,7 +423,7 @@ export function ChatApp({
 function UnreadDot({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-high px-1 text-[10px] font-semibold text-white">
+    <span className="inline-grid h-5 min-w-5 shrink-0 place-items-center rounded-full bg-alert px-1 text-[10px] font-semibold text-white">
       {count > 99 ? "99+" : count}
     </span>
   );

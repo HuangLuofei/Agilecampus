@@ -1,10 +1,10 @@
-import Link from "next/link";
 import { z } from "zod";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getProjectForUser, listProjectMilestones } from "@/lib/project";
 import { listProjectTasks } from "@/lib/task";
 import { classifyDue, parseDay, type DueState } from "@/lib/due";
+import { BackButton } from "@/components/back-button";
 
 const DAY = 86_400_000;
 
@@ -66,9 +66,7 @@ export default async function TimelinePage({
   return (
     <main className="mx-auto max-w-5xl space-y-6 py-8">
       <header className="space-y-1">
-        <Link href={`/projects/${projectId}`} className="text-xs text-ink-soft hover:text-primary">
-          ← 返回项目
-        </Link>
+        <BackButton fallbackHref={`/projects/${projectId}`} />
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 时间线
         </h1>
@@ -147,7 +145,7 @@ function Gantt({
 
   // 逾期压过状态色；临期用琥珀色提示
   const DUE_BAR: Record<DueState, string | null> = {
-    overdue: "bg-high",
+    overdue: "bg-alert",
     soon: "bg-medium",
     ok: null,
   };
@@ -227,7 +225,7 @@ function Gantt({
         <Legend cls="bg-doing" label="进行中" />
         <Legend cls="bg-done" label="已完成" />
         <Legend cls="bg-medium" label="临期（3 天内）" />
-        <Legend cls="bg-high" label="逾期" />
+        <Legend cls="bg-alert" label="逾期" />
         <span className="flex items-center gap-1">
           <span className="inline-block h-3 w-px bg-accent/70" /> 今日
         </span>
