@@ -37,7 +37,7 @@ async function scene() {
   const member = await makeUser("member@example.com");
   await joinTeam(member.id, team.inviteCode);
   const project = await createProject(owner.id, team.id, { name: "项目A" });
-  return { owner, member, project };
+  return { owner, member, team, project };
 }
 
 describe("syncDueSoonNotifications", () => {
@@ -69,7 +69,7 @@ describe("syncDueSoonNotifications", () => {
 
     const res = await syncDueSoonNotifications(member.id);
     // managed=0：这两条都是本人负责的任务，不是「管理员兜底」口径进来的
-    expect(res).toEqual({ dueSoon: 1, overdue: 1, managed: 0 });
+    expect(res).toEqual({ dueSoon: 1, overdue: 1, managed: 0, projectIds: [project.id] });
 
     const items = (await listNotifications(member.id)).filter((i) => i.type === "task_due_soon");
     expect(items).toHaveLength(2);
@@ -80,6 +80,24 @@ describe("syncDueSoonNotifications", () => {
 
     const soonNotif = items.find((i) => i.title === "任务即将到期")!;
     expect(soonNotif.content).toBe(`任务《临期任务》将于 ${day(1)} 到期`);
+  });
+
+  it("跨项目时 projectIds 去重列出全部涉及的项目", async () => {
+    const { owner, member, team, project } = await scene();
+    const other = await createProject(owner.id, team.id, { name: "项目B" });
+    await createTask(owner.id, project.id, {
+      title: "A 逾期",
+      assigneeId: member.id,
+      dueDate: day(-1),
+    });
+    await createTask(owner.id, other.id, {
+      title: "B 临期",
+      assigneeId: member.id,
+      dueDate: day(1),
+    });
+
+    const res = await syncDueSoonNotifications(member.id);
+    expect(new Set(res.projectIds)).toEqual(new Set([project.id, other.id]));
   });
 
   it("按天幂等：重复调用不重复生成；只发给负责人本人", async () => {
