@@ -415,15 +415,12 @@ export async function sendMessage(actorId: string, roomId: string, content: stri
 // 标记已读：upsert 读水位 = now
 export async function markRoomRead(actorId: string, roomId: string) {
   await requireRoomAccess(actorId, roomId);
-  // 读水位必须用数据库时钟（now()）：消息 createdAt 是 defaultNow()（微秒精度），
-  // 若用 JS new Date()（毫秒级且走主机时钟），同毫秒标记已读或时钟偏差会让水位
-  // 落在消息之前，消息被误判为未读（读回执 readBy 同理）。
   await db
     .insert(chatRoomMembers)
-    .values({ roomId, userId: actorId, lastReadAt: sql`now()` })
+    .values({ roomId, userId: actorId, lastReadAt: new Date() })
     .onConflictDoUpdate({
       target: [chatRoomMembers.roomId, chatRoomMembers.userId],
-      set: { lastReadAt: sql`now()` },
+      set: { lastReadAt: new Date() },
     });
 }
 
