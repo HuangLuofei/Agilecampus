@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listMyProjects } from "@/lib/project";
 import { listMyAssets, type MyAssetRow } from "@/lib/my-assets";
-import { formatSize } from "@/app/(app)/projects/[projectId]/assets/asset-types";
+import { formatSize, getAssetIcon, getAssetTypeLabel } from "@/app/(app)/projects/[projectId]/assets/asset-types";
 import { BackButton } from "@/components/back-button";
 import { AssetCreator, AssetDeleteButton } from "./asset-actions";
 
@@ -146,8 +146,9 @@ export default async function MyAssetsPage({
 function AssetRowItem({ row, q, archived }: { row: MyAssetRow; q: string; archived: boolean }) {
   const isDoc = row.kind === "document";
   const isFile = row.assetType === "file";
-  const icon = isDoc ? "📄" : isFile ? "📎" : "🔗";
-  const kindLabel = isDoc ? "文档" : isFile ? "文件" : "链接";
+  // 文件图标/标签走 asset-types 统一口径（优先 MIME，回退扩展名）；文档行保持「文档」
+  const icon = isDoc ? "📄" : getAssetIcon(row.fileMime ?? null, row.title, row.assetType);
+  const kindLabel = isDoc ? "文档" : getAssetTypeLabel(row.fileMime ?? null, row.title, row.assetType);
 
   const body = (
     <div className="min-w-0">

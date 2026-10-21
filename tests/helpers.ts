@@ -14,7 +14,7 @@ async function truncateAll(attempts = 8) {
   for (let i = 0; ; i++) {
     try {
       await db.execute(
-        sql`TRUNCATE announcement_comments, task_event_comments, announcements, notifications, task_comments, task_events, task_assignees, task_labels, labels, resource_usages, api_tokens, task_dependencies, messages, conversations, documents, chat_messages, chat_room_members, chat_rooms, tasks, milestones, projects, team_members, teams, users RESTART IDENTITY CASCADE`,
+        sql`TRUNCATE announcement_comments, task_event_comments, announcements, notifications, task_comments, task_events, task_assignees, task_labels, labels, resource_usages, api_tokens, task_dependencies, messages, conversations, documents, chat_message_flags, user_message_preferences, user_pinned_rooms, chat_messages, chat_room_members, chat_rooms, tasks, milestones, projects, team_members, teams, users RESTART IDENTITY CASCADE`,
       );
       return;
     } catch (e) {

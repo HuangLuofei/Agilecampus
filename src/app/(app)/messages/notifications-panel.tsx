@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { listNotifications } from "@/lib/notification";
+import { sortNotifications } from "@/lib/message-sort";
+import type { MessageSortMode } from "@/lib/message-sort";
 import {
   markAllNotificationsReadAction,
   markNotificationReadAction,
 } from "../projects/[projectId]/actions";
 import { AnnouncementForm } from "./announcement-form";
+import { NotificationSortToggle } from "./notification-sort-toggle";
 
 const TYPE_LABEL: Record<string, string> = {
   task_assigned: "任务指派",
@@ -41,16 +44,24 @@ type Items = Awaited<ReturnType<typeof listNotifications>>;
 export function NotificationsPanel({
   items,
   projects,
+  initialSortMode,
 }: {
   items: Items;
   projects: { id: string; name: string }[];
+  initialSortMode: MessageSortMode;
 }) {
+  // 通知排序：time=按时间倒序（未读不置顶）；unread=未读优先。聊天与通知各自独立设置。
+  const sorted = sortNotifications(items, initialSortMode);
+
   return (
     <div className="space-y-4">
       <AnnouncementForm projects={projects} />
 
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-ink-soft">{items.filter((item) => !item.isRead).length} 条未读</p>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-ink-soft">{items.filter((item) => !item.isRead).length} 条未读</p>
+          <NotificationSortToggle initialMode={initialSortMode} />
+        </div>
         <form action={markAllNotificationsReadAction}>
           <button className="ac-btn-ghost" disabled={items.every((item) => item.isRead)}>
             全部标为已读
@@ -58,11 +69,11 @@ export function NotificationsPanel({
         </form>
       </div>
 
-      {items.length === 0 ? (
+      {sorted.length === 0 ? (
         <div className="ac-card p-8 text-center text-sm text-ink-soft">暂时没有通知</div>
       ) : (
         <ul className="divide-y divide-line border-y border-line ac-card">
-          {items.map((item) => (
+          {sorted.map((item) => (
             <li key={item.id} className={`flex gap-3 px-4 py-4 ${item.isRead ? "" : "bg-primary-soft/40"}`}>
               <span
                 className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${item.isRead ? "bg-line-strong" : "bg-accent"}`}

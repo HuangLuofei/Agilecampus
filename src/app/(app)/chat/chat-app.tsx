@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "./avatar";
+import { sortRooms, type MessageSortMode } from "@/lib/message-sort";
 
 export type ChatOverview = {
   projects: { id: string; name: string; teamName: string; members: { id: string; name: string }[] }[];
@@ -11,6 +12,22 @@ export type ChatOverview = {
   unreadTotal: number;
 };
 
+export type ChatPreferences = {
+  chatSortMode: MessageSortMode;
+  notificationSortMode: MessageSortMode;
+  chatFilterMode: "all" | "important";
+};
+
+export type ConversationSummary = {
+  roomId: string;
+  type: "group" | "dm";
+  title: string;
+  lastActivityAt: Date | string | number;
+  unread: number;
+};
+
+type MessageFlags = { isImportant: boolean; savedByMe: boolean };
+
 type Message = {
   id: string;
   senderId: string;
@@ -18,12 +35,13 @@ type Message = {
   content: string;
   createdAt: string;
   mine: boolean;
+  flags?: MessageFlags;
   readBy?: { id: string; name: string }[];
 };
 
 type Member = { id: string; name: string };
 
-type Room = { roomId: string; title: string; type: "group" | "dm" };
+type Room = { roomId: string; title: string; type: "group" | "dm"; canManageImportant?: boolean };
 
 const POLL_MS = 4000;
 
@@ -60,11 +78,17 @@ export function ChatApp({
   userName,
   initial,
   initialRoomId,
+  initialPreferences,
+  initialPinned,
+  initialConversations,
 }: {
   userId: string;
   userName: string;
   initial: ChatOverview;
   initialRoomId?: string | null;
+  initialPreferences: ChatPreferences;
+  initialPinned: string[];
+  initialConversations: ConversationSummary[];
 }) {
   const router = useRouter();
   const [groupRooms, setGroupRooms] = useState(initial.groupRooms);
@@ -80,6 +104,12 @@ export function ChatApp({
   const inputRef = useRef<HTMLInputElement>(null);
   const unreadTotalRef = useRef<number | null>(null);
 
+  // 消息中心偏好：聊天排序 / 消息过滤 / 置顶（只影响本人视图）
+  const [chatSortMode, setChatSortMode] = useState<MessageSortMode>(initialPreferences.chatSortMode);
+  const [filterMode, setFilterMode] = useState<"all" | "important">(initialPreferences.chatFilterMode);
+  const [pinned, setPinned] = useState<Set<string>>(new Set(initialPinned));
+  const [conversations, setConversations] = useState<ConversationSummary[]>(initialConversations);
+
   function clearUnread(roomId: string) {
     const zero = (map: Record<string, { roomId: string; unread: number }>) => {
       const next = { ...map };
@@ -88,6 +118,7 @@ export function ChatApp({
     };
     setGroupRooms(zero);
     setDmRooms(zero);
+    setConversations((list) => list.map((c) => (c.roomId === roomId ? { ...c, unread: 0 } : c)));
   }
 
   function selectRoom(room: Room) {
@@ -114,7 +145,12 @@ export function ChatApp({
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (data.room) {
-          setSelected({ roomId: data.room.id, title: data.room.title, type: data.room.type });
+          setSelected({
+            roomId: data.room.id,
+            title: data.room.title,
+            type: data.room.type,
+            canManageImportant: data.room.canManageImportant,
+          });
           setMembers(data.members ?? []);
           clearUnread(data.room.id);
         }
@@ -142,6 +178,26 @@ export function ChatApp({
         setMembers(data.members ?? []);
         setGroupRooms(data.groupRooms);
         setDmRooms(data.dmRooms);
+        // 会话摘要的未读随轮询同步（排序依据之一）
+        if (Array.isArray(data.groupRooms) === false) {
+          const unreadByRoomId = new Map<string, number>();
+          for (const v of Object.values(data.groupRooms ?? {}) as { roomId: string; unread: number }[])
+            unreadByRoomId.set(v.roomId, v.unread);
+          for (const v of Object.values(data.dmRooms ?? {}) as { roomId: string; unread: number }[])
+            unreadByRoomId.set(v.roomId, v.unread);
+          setConversations((list) =>
+            list.map((c) =>
+              unreadByRoomId.has(c.roomId) ? { ...c, unread: unreadByRoomId.get(c.roomId)! } : c,
+            ),
+          );
+        }
+        if (data.room) {
+          setSelected((prev) =>
+            prev && prev.roomId === data.room.id
+              ? { ...prev, canManageImportant: data.room.canManageImportant }
+              : prev,
+          );
+        }
         // 已读已在服务端确认，同时更新 layout 内的「消息／对话」角标。
         // 首次拉取也刷新，避免侧栏沿用上一个页面的未读数；后续仅在数量变化时刷新。
         if (unreadTotalRef.current !== data.unreadTotal) {
@@ -180,6 +236,20 @@ export function ChatApp({
         }
         roomId = data.roomId;
         setGroupRooms((g) => ({ ...g, [projectId]: { roomId, unread: 0 } }));
+        setConversations((list) =>
+          list.some((c) => c.roomId === roomId)
+            ? list
+            : [
+                ...list,
+                {
+                  roomId,
+                  type: "group" as const,
+                  title: groupName,
+                  lastActivityAt: new Date().toISOString(),
+                  unread: 0,
+                },
+              ],
+        );
       } catch {
         setError("网络异常，请重试");
         return;
@@ -204,6 +274,20 @@ export function ChatApp({
         }
         roomId = data.roomId;
         setDmRooms((d) => ({ ...d, [memberId]: { roomId, unread: 0 } }));
+        setConversations((list) =>
+          list.some((c) => c.roomId === roomId)
+            ? list
+            : [
+                ...list,
+                {
+                  roomId,
+                  type: "dm" as const,
+                  title: memberName,
+                  lastActivityAt: new Date().toISOString(),
+                  unread: 0,
+                },
+              ],
+        );
       } catch {
         setError("网络异常，请重试");
         return;
@@ -227,6 +311,7 @@ export function ChatApp({
       content: text,
       createdAt: new Date().toISOString(),
       mine: true,
+      flags: { isImportant: false, savedByMe: false },
     };
     setMessages((m) => [...m, temp]);
 
@@ -243,12 +328,103 @@ export function ChatApp({
         return;
       }
       setMessages((m) => m.map((x) => (x.id === temp.id ? (data.message as Message) : x)));
+      // 发消息只更新最近活动时间，不改动用户选择的排序/过滤偏好
+      setConversations((list) =>
+        list.map((c) =>
+          c.roomId === selected.roomId ? { ...c, lastActivityAt: new Date().toISOString() } : c,
+        ),
+      );
     } catch {
       setError("网络异常，请重试");
     } finally {
       setPending(false);
     }
   }
+
+  // ── 排序 / 过滤 / 置顶 ──────────────────────────────────────────────
+
+  function switchSortMode(next: MessageSortMode) {
+    if (next === chatSortMode) return;
+    setChatSortMode(next);
+    void fetch("/api/messages/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatSortMode: next }),
+    }).catch(() => setChatSortMode(chatSortMode));
+  }
+
+  function switchFilterMode(next: "all" | "important") {
+    if (next === filterMode) return;
+    setFilterMode(next);
+    void fetch("/api/messages/preferences", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chatFilterMode: next }),
+    }).catch(() => setFilterMode(filterMode));
+  }
+
+  function togglePin(roomId: string) {
+    const next = new Set(pinned);
+    const willPin = !next.has(roomId);
+    if (willPin) next.add(roomId);
+    else next.delete(roomId);
+    setPinned(next);
+    void fetch("/api/messages/pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ roomId, pinned: willPin }),
+    }).catch(() => setPinned(pinned));
+  }
+
+  function toggleMessageFlag(messageId: string, kind: "important" | "saved", value: boolean) {
+    setMessages((list) =>
+      list.map((m) =>
+        m.id === messageId
+          ? {
+              ...m,
+              flags: {
+                isImportant: kind === "important" ? value : (m.flags?.isImportant ?? false),
+                savedByMe: kind === "saved" ? value : (m.flags?.savedByMe ?? false),
+              },
+            }
+          : m,
+      ),
+    );
+    void fetch("/api/messages/flags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId, kind, value }),
+    }).catch(() => {
+      // 失败回滚
+      setMessages((list) =>
+        list.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                flags: {
+                  isImportant: kind === "important" ? !value : (m.flags?.isImportant ?? false),
+                  savedByMe: kind === "saved" ? !value : (m.flags?.savedByMe ?? false),
+                },
+              }
+            : m,
+        ),
+      );
+    });
+  }
+
+  const sortedConversations = useMemo(
+    () => sortRooms(conversations, chatSortMode, pinned),
+    [conversations, chatSortMode, pinned],
+  );
+
+  // 仅重要：小组级重要 或 我收藏的（与服务端 isImportantToUser 同口径）
+  const visibleMessages = useMemo(
+    () =>
+      filterMode === "important"
+        ? messages.filter((m) => m.flags?.isImportant || m.flags?.savedByMe)
+        : messages,
+    [messages, filterMode],
+  );
 
   function onInputChange(value: string) {
     setInput(value);
@@ -279,58 +455,166 @@ export function ChatApp({
   return (
     <div className="flex gap-4">
       <aside className="w-64 shrink-0 space-y-5">
-        {initial.projects.length === 0 ? (
-          <p className="text-sm text-ink-soft">你还没有项目——加入团队并创建项目后即可对话。</p>
-        ) : (
-          initial.projects.map((p) => (
-            <div key={p.id} className="space-y-1">
-              <button
-                onClick={() => openGroup(p.id, `${p.name}-${p.teamName}`)}
-                className="flex w-full items-center gap-2 rounded-field px-1 py-1.5 text-left text-sm font-medium text-ink transition-colors hover:bg-primary-soft"
-              >
-                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary-soft text-xs font-semibold text-primary">
-                  群
-                </span>
-                <span className="flex-1 truncate">
-                  {p.name}-{p.teamName}
-                </span>
-                <UnreadDot count={groupRooms[p.id]?.unread ?? 0} />
-              </button>
-              {p.members
-                .filter((m) => m.id !== userId)
-                .map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => openDm(m.id, m.name)}
-                    className="flex w-full items-center gap-2 rounded-field py-1.5 pl-4 pr-1 text-left text-sm text-ink transition-colors hover:bg-primary-soft"
-                  >
-                    <Avatar name={m.name} size="sm" />
-                    <span className="flex-1 truncate">{m.name}</span>
-                    <UnreadDot count={dmRooms[m.id]?.unread ?? 0} />
-                  </button>
-                ))}
+        {/* 会话列表：置顶 →（未读优先时）未读 → 最近活动倒序 */}
+        <div className="space-y-1">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-ink">会话</h2>
+            <div className="flex items-center gap-1 rounded-field border border-line p-0.5">
+              {(
+                [
+                  ["time", "按时间"],
+                  ["unread", "未读优先"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => switchSortMode(value)}
+                  className={`rounded-[calc(var(--radius-field)-2px)] px-2 py-0.5 text-xs transition-colors ${
+                    chatSortMode === value
+                      ? "bg-primary-soft font-medium text-primary"
+                      : "text-ink-soft hover:text-ink"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
-          ))
-        )}
+          </div>
+          {sortedConversations.length === 0 ? (
+            <p className="text-xs text-ink-faint">还没有会话</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {sortedConversations.map((c) => (
+                <li key={c.roomId} className="group/conv flex items-center gap-1">
+                  <button
+                    onClick={() => selectRoom({ roomId: c.roomId, title: c.title, type: c.type })}
+                    className={`flex flex-1 items-center gap-2 rounded-field px-1 py-1.5 text-left text-sm transition-colors hover:bg-primary-soft ${
+                      selected?.roomId === c.roomId ? "bg-primary-soft" : ""
+                    }`}
+                  >
+                    <span
+                      className={`grid h-7 w-7 shrink-0 place-items-center rounded-md text-xs font-semibold ${
+                        c.type === "group"
+                          ? "bg-primary-soft text-primary"
+                          : "bg-sunken text-ink-soft"
+                      }`}
+                    >
+                      {c.type === "group" ? "群" : <Avatar name={c.title} size="sm" />}
+                    </span>
+                    <span className="flex-1 truncate text-ink">{c.title}</span>
+                    <UnreadDot count={c.unread} />
+                  </button>
+                  {c.type === "group" && (
+                    <button
+                      type="button"
+                      onClick={() => togglePin(c.roomId)}
+                      title={pinned.has(c.roomId) ? "取消置顶" : "置顶该群聊"}
+                      className={`shrink-0 rounded px-1 py-1 text-xs transition-opacity ${
+                        pinned.has(c.roomId)
+                          ? "text-accent"
+                          : "text-ink-faint opacity-0 group-hover/conv:opacity-100"
+                      }`}
+                    >
+                      {pinned.has(c.roomId) ? "📌" : "📍"}
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        {/* 发起会话：项目群聊 + 成员私聊入口 */}
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold text-ink">发起会话</h2>
+          {initial.projects.length === 0 ? (
+            <p className="text-sm text-ink-soft">你还没有项目——加入团队并创建项目后即可对话。</p>
+          ) : (
+            initial.projects.map((p) => (
+              <div key={p.id} className="space-y-1">
+                <button
+                  onClick={() => openGroup(p.id, `${p.name}-${p.teamName}`)}
+                  className="flex w-full items-center gap-2 rounded-field px-1 py-1.5 text-left text-sm font-medium text-ink transition-colors hover:bg-primary-soft"
+                >
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-primary-soft text-xs font-semibold text-primary">
+                    群
+                  </span>
+                  <span className="flex-1 truncate">
+                    {p.name}-{p.teamName}
+                  </span>
+                  <UnreadDot count={groupRooms[p.id]?.unread ?? 0} />
+                </button>
+                {p.members
+                  .filter((m) => m.id !== userId)
+                  .map((m) => (
+                    <button
+                      key={m.id}
+                      onClick={() => openDm(m.id, m.name)}
+                      className="flex w-full items-center gap-2 rounded-field py-1.5 pl-4 pr-1 text-left text-sm text-ink transition-colors hover:bg-primary-soft"
+                    >
+                      <Avatar name={m.name} size="sm" />
+                      <span className="flex-1 truncate">{m.name}</span>
+                      <UnreadDot count={dmRooms[m.id]?.unread ?? 0} />
+                    </button>
+                  ))}
+              </div>
+            ))
+          )}
+        </div>
       </aside>
 
       <section className="flex min-h-[70vh] flex-1 flex-col ac-card overflow-hidden">
         {selected ? (
           <>
             <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
-              <span className="font-display text-base font-semibold text-ink">
-                {selected.title}
-              </span>
-              {selected.type === "group" && (
-                <span className="text-xs text-ink-faint">群成员 {otherMembers.length} 人</span>
-              )}
+              <div className="flex items-center gap-2">
+                <span className="font-display text-base font-semibold text-ink">
+                  {selected.title}
+                </span>
+                {pinned.has(selected.roomId) && <span className="text-xs text-accent">📌 已置顶</span>}
+              </div>
+              <div className="flex items-center gap-2">
+                {/* 全部 / 仅重要 */}
+                <div className="flex items-center gap-1 rounded-field border border-line p-0.5">
+                  {(
+                    [
+                      ["all", "全部"],
+                      ["important", "仅重要"],
+                    ] as const
+                  ).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => switchFilterMode(value)}
+                      className={`rounded-[calc(var(--radius-field)-2px)] px-2 py-0.5 text-xs transition-colors ${
+                        filterMode === value
+                          ? "bg-primary-soft font-medium text-primary"
+                          : "text-ink-soft hover:text-ink"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {selected.type === "group" && (
+                  <span className="text-xs text-ink-faint">群成员 {otherMembers.length} 人</span>
+                )}
+              </div>
             </header>
             <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-4">
-              {messages.length === 0 && (
-                <p className="text-sm text-ink-faint">还没有消息，说点什么吧。</p>
+              {visibleMessages.length === 0 && (
+                <p className="text-sm text-ink-faint">
+                  {filterMode === "important" ? "还没有重要消息。" : "还没有消息，说点什么吧。"}
+                </p>
               )}
-              {messages.map((m) => (
-                <div key={m.id} className="flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-sunken/60">
+              {visibleMessages.map((m) => (
+                <div
+                  key={m.id}
+                  className={`group/msg flex gap-2.5 rounded-lg px-2 py-1.5 hover:bg-sunken/60 ${
+                    m.flags?.isImportant ? "border-l-2 border-accent bg-accent-soft/30" : ""
+                  }`}
+                >
                   {selected.type === "group" && !m.mine ? (
                     <button
                       type="button"
@@ -343,10 +627,16 @@ export function ChatApp({
                   ) : (
                     <Avatar name={m.senderName} size="sm" />
                   )}
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-2">
                       <span className="text-sm font-medium text-ink">{m.senderName}</span>
                       <span className="text-xs text-ink-faint">{fmtTime(m.createdAt)}</span>
+                      {m.flags?.isImportant && (
+                        <span className="ac-badge bg-accent-soft text-accent">重要</span>
+                      )}
+                      {m.flags?.savedByMe && (
+                        <span className="ac-badge bg-primary-soft text-primary">已收藏</span>
+                      )}
                     </div>
                     <p className="whitespace-pre-wrap text-sm text-ink">{renderContent(m.content)}</p>
                     {m.mine && (
@@ -356,6 +646,25 @@ export function ChatApp({
                         totalReaders={otherMembers.length}
                       />
                     )}
+                    {/* 消息操作：收藏（所有人）/ 标记重要（仅组长） */}
+                    <div className="mt-1 flex items-center gap-2 text-xs opacity-0 transition-opacity group-hover/msg:opacity-100">
+                      <button
+                        type="button"
+                        onClick={() => toggleMessageFlag(m.id, "saved", !m.flags?.savedByMe)}
+                        className="text-ink-soft hover:text-primary"
+                      >
+                        {m.flags?.savedByMe ? "★ 取消收藏" : "☆ 收藏"}
+                      </button>
+                      {selected.type === "group" && selected.canManageImportant && (
+                        <button
+                          type="button"
+                          onClick={() => toggleMessageFlag(m.id, "important", !m.flags?.isImportant)}
+                          className="text-ink-soft hover:text-accent"
+                        >
+                          {m.flags?.isImportant ? "取消重要" : "标为重要"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -397,7 +706,7 @@ export function ChatApp({
           </>
         ) : (
           <div className="grid flex-1 place-items-center p-8 text-center text-sm text-ink-soft">
-            左侧选择一个群聊或成员，开始对话。
+            左侧选择一个会话，开始对话。
           </div>
         )}
       </section>
