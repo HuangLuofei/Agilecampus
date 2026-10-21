@@ -3,6 +3,7 @@
 import { useActionState, useRef } from "react";
 import { updateDocumentAction, type FormState } from "./actions";
 import { DocAssetToolbar } from "../assets/doc-assets";
+import { scopedHref } from "@/lib/workbench-navigation";
 
 // 资产联动：编辑器内上传的文件经 /api/assets 自动存入项目资产库（绑定 docId）；
 // 删除文档仅解除 assets.docId 关联（外键 onDelete: set null），不删除资产文件。
@@ -10,12 +11,14 @@ import { DocAssetToolbar } from "../assets/doc-assets";
 export function DocEditor({
   projectId,
   documentId,
+  teamId,
   initialTitle,
   initialCategory,
   initialContent,
 }: {
   projectId: string;
   documentId: string;
+  teamId?: string | null;
   initialTitle: string;
   initialCategory: string;
   initialContent: string;
@@ -42,6 +45,7 @@ export function DocEditor({
     <form action={formAction} className="space-y-4">
       <input type="hidden" name="projectId" value={projectId} />
       <input type="hidden" name="documentId" value={documentId} />
+      {teamId && <input type="hidden" name="team" value={teamId} />}
 
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-1">
@@ -78,7 +82,7 @@ export function DocEditor({
         <button disabled={pending} className="ac-btn">
           {pending ? "保存中…" : "保存"}
         </button>
-        <a href={`/projects/${projectId}/docs/${documentId}`} className="ac-btn-ghost">
+        <a href={scopedHref(`/projects/${projectId}/docs/${documentId}`, teamId)} className="ac-btn-ghost">
           取消
         </a>
       </div>

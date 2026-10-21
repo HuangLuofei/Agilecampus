@@ -61,6 +61,8 @@ export async function createTaskAction(
     throw e;
   }
   revalidatePath(`/projects/${projectId}`);
+  // Task changes affect shared reminders and scoped workbench/task summaries.
+  revalidatePath("/", "layout");
   return null;
 }
 
@@ -133,6 +135,7 @@ export async function moveTaskAction(input: {
     throw e;
   }
   revalidatePath(`/projects/${parsed.data.projectId}`);
+  revalidatePath("/", "layout");
   return null;
 }
 
@@ -195,6 +198,7 @@ export async function updateTaskAction(
     throw e;
   }
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/", "layout");
   return { ok: true };
 }
 
@@ -221,6 +225,7 @@ export async function deleteTaskAction(
     throw e;
   }
   revalidatePath(`/projects/${parsed.data.projectId}`);
+  revalidatePath("/", "layout");
   return null;
 }
 

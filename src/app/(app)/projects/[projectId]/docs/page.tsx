@@ -6,6 +6,7 @@ import { getProjectForUser } from "@/lib/project";
 import { listProjectDocuments, listDocumentCategories } from "@/lib/document";
 import { NewDocForm } from "./new-doc-form";
 import { BackButton } from "@/components/back-button";
+import { scopedHref } from "@/lib/workbench-navigation";
 
 function fmtDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -27,6 +28,7 @@ export default async function DocsPage({
 
   const access = await getProjectForUser(session.user.id, projectId);
   if (!access) notFound();
+  const teamId = sp.team === access.project.teamId ? access.project.teamId : null;
 
   const q = typeof sp.q === "string" ? sp.q : "";
   const category = typeof sp.category === "string" ? sp.category : "";
@@ -39,17 +41,19 @@ export default async function DocsPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-3">
-        <BackButton fallbackHref={`/projects/${projectId}`} />
+        <BackButton fallbackHref={scopedHref(`/projects/${projectId}`, teamId)} />
+        <Link href={scopedHref("/projects", teamId)} className="text-sm text-primary">返回工作台</Link>
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 文档
         </h1>
         <p className="text-sm text-ink-soft">项目内的共享 Markdown 文档，全员可编辑。</p>
       </header>
 
-      <NewDocForm projectId={projectId} />
+      <NewDocForm projectId={projectId} teamId={teamId} />
 
       <section className="space-y-3">
         <form method="get" className="ac-card flex flex-wrap items-end gap-3 p-4">
+          {teamId && <input type="hidden" name="team" value={teamId} />}
           <label className="min-w-48 flex-1 space-y-1">
             <span className="text-xs font-medium text-ink-soft">搜索</span>
             <input
@@ -82,7 +86,7 @@ export default async function DocsPage({
             {docs.map((d) => (
               <li key={d.id}>
                 <Link
-                  href={`/projects/${projectId}/docs/${d.id}`}
+                  href={scopedHref(`/projects/${projectId}/docs/${d.id}`, teamId)}
                   className="ac-card flex items-center justify-between gap-4 p-4 transition-colors hover:border-primary"
                 >
                   <div className="min-w-0">

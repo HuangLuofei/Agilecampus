@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
+import { scopedHref } from "@/lib/workbench-navigation";
 import {
   parseFilters,
   serializeFilters,
@@ -45,7 +46,8 @@ export function FilterBar({
   // 筛选态写入 URL：可分享、可刷新保持、可后退。scroll:false 免得跳回页首。
   function push(next: BoardFilters) {
     const qs = serializeFilters(next);
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    const href = scopedHref(qs ? `${pathname}?${qs}` : pathname, searchParams.get("team"));
+    router.replace(href, { scroll: false });
   }
 
   // 关键词：本地即时回显 + 防抖写入 URL，免得每敲一个字就打一次 replace。

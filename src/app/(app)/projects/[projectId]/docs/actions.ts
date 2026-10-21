@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { createDocument, updateDocument, deleteDocument } from "@/lib/document";
 import { AppError } from "@/lib/errors";
+import { scopedHref } from "@/lib/workbench-navigation";
 
 export type FormState = { error: string } | null;
 
@@ -14,6 +15,7 @@ const categoryField = z.string().trim().optional();
 
 const createSchema = z.object({
   projectId: z.uuid(),
+  team: z.uuid().optional(),
   title: titleField,
   category: categoryField,
   content: z.string().optional(),
@@ -43,11 +45,12 @@ export async function createDocumentAction(
   }
 
   revalidatePath(`/projects/${parsed.data.projectId}/docs`);
-  redirect(`/projects/${parsed.data.projectId}/docs/${docId}`);
+  redirect(scopedHref(`/projects/${parsed.data.projectId}/docs/${docId}`, parsed.data.team));
 }
 
 const updateSchema = z.object({
   projectId: z.uuid(),
+  team: z.uuid().optional(),
   documentId: z.uuid(),
   title: titleField,
   category: categoryField,
@@ -76,10 +79,10 @@ export async function updateDocumentAction(
   }
 
   revalidatePath(`/projects/${parsed.data.projectId}/docs/${parsed.data.documentId}`);
-  redirect(`/projects/${parsed.data.projectId}/docs/${parsed.data.documentId}`);
+  redirect(scopedHref(`/projects/${parsed.data.projectId}/docs/${parsed.data.documentId}`, parsed.data.team));
 }
 
-const deleteSchema = z.object({ projectId: z.uuid(), documentId: z.uuid() });
+const deleteSchema = z.object({ projectId: z.uuid(), documentId: z.uuid(), team: z.uuid().optional() });
 
 export async function deleteDocumentAction(formData: FormData) {
   const session = await auth();
@@ -90,5 +93,5 @@ export async function deleteDocumentAction(formData: FormData) {
 
   await deleteDocument(session.user.id, parsed.data.documentId);
   revalidatePath(`/projects/${parsed.data.projectId}/docs`);
-  redirect(`/projects/${parsed.data.projectId}/docs`);
+  redirect(scopedHref(`/projects/${parsed.data.projectId}/docs`, parsed.data.team));
 }

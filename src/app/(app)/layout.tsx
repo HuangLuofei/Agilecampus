@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { countUnreadNotifications } from "@/lib/notification";
@@ -6,6 +6,8 @@ import { countUnreadChats } from "@/lib/chat";
 import { syncDueSoonNotifications } from "@/lib/reminder";
 import { listMyTeamsWithProjects } from "@/lib/project";
 import { AppSidebar } from "./app-sidebar";
+import { DueReminderBanner } from "./due-reminder-banner";
+import { getWorkbenchReminders } from "@/lib/workbench-reminders";
 
 export default async function AppLayout({
   children,
@@ -15,48 +17,28 @@ export default async function AppLayout({
   const session = await auth();
   if (!session?.user) redirect("/login");
   // 进入应用即生成临期/逾期提醒（按天去重），再统计未读，使角标即时反映
-  const due = await syncDueSoonNotifications(session.user.id);
-  const [unreadCount, unreadChats, teams] = await Promise.all([
+  await syncDueSoonNotifications(session.user.id);
+  const [unreadCount, unreadChats, teams, reminders] = await Promise.all([
     countUnreadNotifications(session.user.id),
     countUnreadChats(session.user.id),
     listMyTeamsWithProjects(session.user.id),
+    getWorkbenchReminders(session.user.id),
   ]);
-
-  const dueParts: string[] = [];
-  if (due.overdue > 0) dueParts.push(`${due.overdue} 个任务已逾期`);
-  if (due.dueSoon > 0) dueParts.push(`${due.dueSoon} 个任务即将到期`);
-  // 管理者口径：其中有多少条来自「我管理的项目、但不由我负责」的任务
-  const managedHint = due.managed > 0 ? `（含我管理项目内的 ${due.managed} 个）` : "";
-  // 提醒只涉及一个项目时，「查看提醒」直接跳该项目看板；涉及多个则跳提醒列表
-  const soleProjectId = due.projectIds.length === 1 ? due.projectIds[0] : null;
 
   return (
     <div className="flex min-h-screen">
-      <AppSidebar
-        userName={session.user.name}
-        teams={teams}
-        unreadChats={unreadChats}
-        unreadNotifications={unreadCount}
-      />
+      <Suspense>
+        <AppSidebar
+          userName={session.user.name}
+          teams={teams}
+          unreadChats={unreadChats}
+          unreadNotifications={unreadCount}
+        />
+      </Suspense>
       <div className="flex min-w-0 flex-1 flex-col">
-        {dueParts.length > 0 && (
-          <div className="border-b border-line bg-alert-soft">
-            <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-2 px-6 py-2 text-sm text-alert">
-              <span aria-hidden className="h-2 w-2 shrink-0 rounded-full bg-alert" />
-              <span className="font-medium">到期提醒</span>
-              <span>
-                {dueParts.join("，")}
-                {managedHint}
-              </span>
-              <Link
-                href={soleProjectId ? `/projects/${soleProjectId}` : "/messages?tab=notifications"}
-                className="underline hover:no-underline"
-              >
-                查看提醒
-              </Link>
-            </div>
-          </div>
-        )}
+        <Suspense>
+          <DueReminderBanner summaries={reminders.byTeam} teamIds={teams.map((team) => team.id)} />
+        </Suspense>
         <div className="mx-auto w-full max-w-6xl px-6 py-8">{children}</div>
       </div>
     </div>
