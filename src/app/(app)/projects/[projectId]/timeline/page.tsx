@@ -5,6 +5,8 @@ import { getProjectForUser, listProjectMilestones } from "@/lib/project";
 import { listProjectTasks } from "@/lib/task";
 import { classifyDue, parseDay, type DueState } from "@/lib/due";
 import { BackButton } from "@/components/back-button";
+import Link from "next/link";
+import { scopedHref } from "@/lib/workbench-navigation";
 
 const DAY = 86_400_000;
 
@@ -27,8 +29,10 @@ interface Bar {
 
 export default async function TimelinePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { projectId } = await params;
   const session = await auth();
@@ -37,6 +41,8 @@ export default async function TimelinePage({
 
   const access = await getProjectForUser(session.user.id, projectId);
   if (!access) notFound();
+  const sp = await searchParams;
+  const teamId = sp.team === access.project.teamId ? access.project.teamId : null;
 
   const [tasks, milestones] = await Promise.all([
     listProjectTasks(session.user.id, projectId),
@@ -66,7 +72,8 @@ export default async function TimelinePage({
   return (
     <main className="mx-auto max-w-5xl space-y-6">
       <header className="space-y-3">
-        <BackButton fallbackHref={`/projects/${projectId}`} />
+        <BackButton fallbackHref={scopedHref(`/projects/${projectId}`, teamId)} />
+        <Link href={scopedHref("/projects", teamId)} className="text-sm text-primary">返回工作台</Link>
         <h1 className="font-display text-2xl font-semibold text-ink">
           {access.project.name} · 时间线
         </h1>

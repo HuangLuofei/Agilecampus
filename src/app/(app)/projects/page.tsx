@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getDashboardData } from "@/lib/dashboard";
 import { toDayString, todayStartMs } from "@/lib/due";
 import { NewProjectForm } from "./new-project-form";
+import { ForbiddenError } from "@/lib/errors";
+import { displayStudentRole, scopedHref } from "@/lib/workbench-navigation";
 
 const AVATAR_COLORS = ["#3370ff", "#2ea121", "#ff8800", "#8b5cf6", "#f54a45", "#00b0b9"];
 
@@ -16,11 +18,15 @@ export default async function WorkbenchPage({
   if (!session?.user) redirect("/login");
 
   const sp = await searchParams;
+  if (Array.isArray(sp.team)) notFound();
   const teamFilter = typeof sp.team === "string" ? sp.team : null;
 
-  const { teams, projects, stats, activity, todos } = await getDashboardData(session.user.id);
+  const { teams, selectedTeam, totalProjectCount, projects, stats, activity, todos, reminders } = await getDashboardData(session.user.id, teamFilter).catch((error) => {
+    if (error instanceof ForbiddenError) notFound();
+    throw error;
+  });
   const adminTeams = teams
-    .filter((t) => t.role === "admin")
+    .filter((t) => t.role === "admin" && (!teamFilter || t.id === teamFilter))
     .map(({ id, name }) => ({ id, name }));
 
   const membersByTeam = new Map(teams.map((t) => [t.id, t.members]));
@@ -31,6 +37,8 @@ export default async function WorkbenchPage({
     team,
     projects: projects.filter((p) => p.teamId === team.id),
   }));
+  const scopeHref = (href: string) => scopedHref(href, teamFilter);
+  const dueItems = sp.attention === "urgent" ? reminders.filter((item) => item.urgent) : reminders;
 
   return (
     <main className="space-y-6">
@@ -38,50 +46,71 @@ export default async function WorkbenchPage({
       <div className="flex items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink">工作台</h1>
-          <p className="mt-1 text-sm text-ink-faint">团队与项目，一个入口浏览</p>
+          <p className="mt-1 text-sm text-ink-faint">{selectedTeam ? `专注于「${selectedTeam.name}」· 统计、待办、动态和提醒均按本组展示` : "按小组查看项目，集中处理当前工作"}</p>
         </div>
         {adminTeams.length > 0 && <NewProjectForm teams={adminTeams} />}
       </div>
 
-      {projects.length === 0 ? (
+      {teams.length === 0 ? (
         <div className="ac-card p-10 text-center text-sm text-ink-soft">
-          {adminTeams.length > 0
-            ? "暂无项目——点右上角「新建项目」创建第一个。"
-            : "暂无项目——加入团队后即可在此查看项目。"}
+          暂无小组——<Link href="/teams" className="text-primary underline">加入或创建小组</Link>后即可查看项目。
         </div>
       ) : (
         <>
           {/* 统计卡片 */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <KpiCard href="/assets" icon="🗂" value={stats.assetCount} label="我的资产" tone="blue" />
-            <KpiCard href="/tasks?status=doing" icon="✓" value={stats.doingCount} label="进行中任务" tone="green" />
-            <KpiCard href="/tasks?status=todo" icon="⏰" value={stats.todoCount} label="待我处理" tone="orange" />
-            <KpiCard href="/tasks?status=overdue" icon="!" value={stats.overdueCount} label="已逾期" tone="red" />
+            <KpiCard href={scopeHref("/assets")} icon="🗂" value={stats.assetCount} label="小组资产" tone="blue" />
+            <KpiCard href={scopeHref("/tasks?status=doing")} icon="✓" value={stats.doingCount} label="我的进行中任务" tone="green" />
+            <KpiCard href={scopeHref("/tasks?status=todo")} icon="⏰" value={stats.todoCount} label="待我处理" tone="orange" />
+            <KpiCard href={scopeHref("/tasks?status=overdue")} icon="!" value={stats.overdueCount} label="我的逾期任务" tone="red" />
           </div>
 
           {/* 团队筛选 */}
-          <div className="flex flex-wrap items-center gap-2">
+          <nav aria-label="小组专注筛选" className="flex flex-wrap items-center gap-2">
             <FilterChip href="/projects" active={teamFilter === null}>
-              全部项目 <span className="opacity-60">{projects.length}</span>
+              全部小组 <span className="opacity-60">{totalProjectCount} 个项目</span>
             </FilterChip>
             {teams.map((t) => (
               <FilterChip key={t.id} href={`/projects?team=${t.id}`} active={teamFilter === t.id}>
                 {t.name} <span className="opacity-60">{t.projects.length}</span>
               </FilterChip>
             ))}
-          </div>
+          </nav>
+
+          {(sp.attention === "due" || sp.attention === "urgent") && (
+            <section className="ac-card space-y-3 p-4" aria-label="到期任务提醒">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="font-semibold text-ink">{sp.attention === "urgent" ? "强提醒：逾期或高优先级临期" : "到期任务提醒"} · {dueItems.length}</h2>
+                <Link href={scopeHref("/projects")} className="text-sm text-primary">收起</Link>
+              </div>
+              <p className="text-xs text-ink-faint">成员查看自己负责的任务；组长同时查看本组项目的到期风险。</p>
+              {dueItems.length === 0 ? <p className="text-sm text-ink-soft">当前范围暂无相关提醒。</p> : (
+                <ul className="divide-y divide-line">
+                  {dueItems.map((item) => (
+                    <li key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                      <div className="min-w-0">
+                        <Link href={scopeHref(`/projects/${item.projectId}?task=${item.id}`)} className="font-medium text-ink hover:text-primary">{item.title}</Link>
+                        <p className="text-xs text-ink-faint">{item.teamName} / {item.projectName}</p>
+                      </div>
+                      <span className={`text-xs ${item.state === "overdue" ? "text-alert" : "text-accent"}`}>{item.state === "overdue" ? "已逾期" : "即将到期"} · {item.dueDate}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          )}
 
           {/* 主区 + 右侧栏 */}
           <div className="grid items-start gap-6 lg:grid-cols-[1fr_300px]">
             {/* 左：按团队分组的项目 */}
             <div className="space-y-8">
-              {groups.map(({ team, projects: teamProjects }) =>
-                teamProjects.length === 0 ? null : (
+              {groups.map(({ team, projects: teamProjects }) => (
                   <section key={team.id} className="space-y-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span aria-hidden className="h-4 w-1 rounded-full bg-primary" />
                       <h2 className="font-display text-base font-semibold text-ink">{team.name}</h2>
                       <RoleBadge role={team.role} />
+                      <span className="text-xs text-ink-faint">{teamProjects.length} 个项目</span>
                       <Link
                         href={`/teams/${team.id}/members`}
                         title="查看团队成员"
@@ -93,28 +122,32 @@ export default async function WorkbenchPage({
                         href={`/teams/${team.id}/members`}
                         className="ml-auto text-sm text-ink-faint hover:text-primary"
                       >
-                        管理 ▾
+                        {team.role === "admin" ? "管理成员" : "查看成员"}
                       </Link>
                     </div>
+                    <p className="text-xs text-ink-soft">
+                      逾期 {teamProjects.reduce((n, p) => n + p.overdueCount, 0)} · 阻塞 {teamProjects.reduce((n, p) => n + p.blockedCount, 0)}
+                    </p>
+                    {teamProjects.length === 0 && <div className="ac-card p-6 text-sm text-ink-faint">本小组暂无项目。{team.role === "admin" ? "可以通过右上角创建项目。" : "等待组长创建项目。"}</div>}
                     <ul className="grid gap-3 sm:grid-cols-2">
                       {teamProjects.map((p) => (
                         <ProjectCard
                           key={p.id}
                           project={p}
                           teamId={team.id}
+                          focusedTeamId={teamFilter}
                           members={membersByTeam.get(team.id) ?? []}
                           today={today}
                         />
                       ))}
                     </ul>
                   </section>
-                ),
-              )}
+                ))}
             </div>
 
             {/* 右：最近动态 + 我的待办 */}
             <aside className="space-y-6">
-              <Panel title="最近动态" link="/messages?tab=notifications">
+              <Panel title="最近动态">
                 {activity.length === 0 ? (
                   <p className="py-6 text-center text-sm text-ink-faint">暂无动态</p>
                 ) : (
@@ -134,6 +167,7 @@ export default async function WorkbenchPage({
                             <span className="text-ink">《{a.taskTitle}》</span>
                           </Link>
                           <span className="block text-[11px] text-ink-faint">{a.timeLabel}</span>
+                          <span className="block text-[11px] text-ink-faint">{a.teamName} / {a.projectName}</span>
                         </div>
                       </li>
                     ))}
@@ -141,7 +175,7 @@ export default async function WorkbenchPage({
                 )}
               </Panel>
 
-              <Panel title="我的待办" link="/messages?tab=notifications">
+              <Panel title="我的待办" link={scopeHref("/tasks")}>
                 {todos.length === 0 ? (
                   <p className="py-6 text-center text-sm text-ink-faint">没有待办任务</p>
                 ) : (
@@ -149,12 +183,15 @@ export default async function WorkbenchPage({
                     {todos.map((t) => (
                       <li key={t.id} className="flex items-center gap-2.5 py-2.5">
                         <span className="h-4 w-4 shrink-0 rounded border border-line-strong" />
+                        <div className="min-w-0 flex-1">
                         <Link
                           href={t.linkUrl}
-                          className="min-w-0 flex-1 truncate text-[13px] text-ink-soft hover:text-primary"
+                          className="block truncate text-[13px] text-ink-soft hover:text-primary"
                         >
                           {t.title}
                         </Link>
+                        <p className="truncate text-[11px] text-ink-faint">{t.teamName} / {t.projectName}</p>
+                        </div>
                         <span
                           className={`shrink-0 text-[11px] ${t.overdue ? "text-alert" : "text-ink-faint"}`}
                         >
@@ -220,6 +257,7 @@ function FilterChip({
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] ${
         active
           ? "border-primary bg-primary font-medium text-white"
@@ -234,6 +272,7 @@ function FilterChip({
 function ProjectCard({
   project: p,
   teamId,
+  focusedTeamId,
   members,
   today,
 }: {
@@ -245,8 +284,14 @@ function ProjectCard({
     endDate: string | null;
     taskTotal: number;
     doneCount: number;
+    teamName: string;
+    todoCount: number;
+    doingCount: number;
+    overdueCount: number;
+    blockedCount: number;
   };
   teamId: string;
+  focusedTeamId: string | null;
   members: { id: string; name: string }[];
   today: string;
 }) {
@@ -258,7 +303,7 @@ function ProjectCard({
     <li className="ac-card group p-4 transition-shadow hover:shadow-pop">
       <div className="flex items-start justify-between gap-2">
         <Link
-          href={`/projects/${p.id}`}
+          href={scopedHref(`/projects/${p.id}`, focusedTeamId)}
           className="min-w-0 truncate font-display text-base font-semibold text-ink group-hover:text-primary"
         >
           {p.name}
@@ -270,11 +315,16 @@ function ProjectCard({
         )}
       </div>
 
+      <p className="mt-1 truncate text-xs text-ink-faint">{p.teamName}</p>
+
       {p.description && (
         <p className="mt-1 line-clamp-1 text-xs text-ink-soft">{p.description}</p>
       )}
 
       <div className="mt-3">
+        <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink-soft">
+          <span>待办 {p.todoCount}</span><span>进行中 {p.doingCount}</span><span>已完成 {p.doneCount}</span>
+        </div>
         <div className="mb-1 flex items-center justify-between text-xs text-ink-soft">
           <span>任务进度</span>
           <span className="tabular-nums">
@@ -282,9 +332,14 @@ function ProjectCard({
             {p.taskTotal > 0 ? ` · ${pct}%` : ""}
           </span>
         </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-sunken">
+        <div className="h-1.5 overflow-hidden rounded-full bg-sunken" role="progressbar" aria-label={`${p.name} 完成率`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}>
           <div className="h-full rounded-full bg-done transition-all" style={{ width: `${pct}%` }} />
         </div>
+      </div>
+
+      <div className="mt-2 flex gap-3 text-xs">
+        <span className={p.overdueCount ? "text-alert" : "text-ink-faint"}>逾期 {p.overdueCount}</span>
+        <span className={p.blockedCount ? "text-accent" : "text-ink-faint"}>前置阻塞 {p.blockedCount}</span>
       </div>
 
       <div className="mt-3 flex items-center border-t border-line pt-3">
@@ -316,23 +371,21 @@ function Panel({
   children,
 }: {
   title: string;
-  link: string;
+  link?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="ac-card p-4">
       <div className="mb-2 flex items-center justify-between">
         <h3 className="font-display text-sm font-semibold text-ink">{title}</h3>
-        <Link href={link} className="text-xs text-primary hover:underline">
+        {link && <Link href={link} className="text-xs text-primary hover:underline">
           全部
-        </Link>
+        </Link>}
       </div>
       {children}
     </div>
   );
 }
-
-const ROLE_LABEL: Record<string, string> = { admin: "管理员", teacher: "导师", student: "成员" };
 
 function RoleBadge({ role }: { role: string }) {
   const cls =
@@ -341,5 +394,5 @@ function RoleBadge({ role }: { role: string }) {
       : role === "teacher"
         ? "bg-accent-soft text-accent"
         : "bg-low-soft text-low";
-  return <span className={`ac-badge ${cls}`}>{ROLE_LABEL[role] ?? role}</span>;
+  return <span className={`ac-badge ${cls}`}>{displayStudentRole(role)}</span>;
 }

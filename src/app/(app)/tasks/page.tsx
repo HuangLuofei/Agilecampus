@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listMyTasks } from "@/lib/dashboard";
 import { toDayString, todayStartMs } from "@/lib/due";
 import { BackButton } from "@/components/back-button";
+import { getWorkbenchScope } from "@/lib/workbench";
+import { scopedHref } from "@/lib/workbench-navigation";
+import { ForbiddenError } from "@/lib/errors";
 
 const STATUS_LABEL: Record<string, string> = { todo: "待办", doing: "进行中", done: "已完成" };
 
@@ -16,10 +19,19 @@ export default async function MyTasksPage({
   if (!session?.user) redirect("/login");
 
   const sp = await searchParams;
+  if (Array.isArray(sp.team)) notFound();
+  const teamId = typeof sp.team === "string" ? sp.team : null;
   const status =
     sp.status === "todo" || sp.status === "doing" || sp.status === "overdue" ? sp.status : "all";
 
-  const tasks = await listMyTasks(session.user.id);
+  const [scope, tasks] = await Promise.all([
+    getWorkbenchScope(session.user.id, teamId),
+    listMyTasks(session.user.id, teamId),
+  ]).catch((error) => {
+    if (error instanceof ForbiddenError) notFound();
+    throw error;
+  });
+  const href = (path: string) => scopedHref(path, teamId);
   const today = toDayString(todayStartMs());
 
   const countBy = (f: (t: (typeof tasks)[number]) => boolean) => tasks.filter(f).length;
@@ -40,24 +52,29 @@ export default async function MyTasksPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-3">
-        <BackButton fallbackHref="/projects" />
+        <BackButton fallbackHref={href("/projects")} />
         <div>
           <h1 className="font-display text-2xl font-semibold text-ink">我的任务</h1>
-          <p className="mt-1 text-sm text-ink-faint">分配给我、尚未完成的任务</p>
+          <p className="mt-1 text-sm text-ink-faint">{scope.selectedTeam ? `「${scope.selectedTeam.name}」内` : "全部小组中"}分配给我、尚未完成的任务</p>
         </div>
       </header>
 
+      <nav aria-label="任务小组筛选" className="flex flex-wrap gap-2">
+        <TaskTab href={scopedHref(status === "all" ? "/tasks" : `/tasks?status=${status}`, null)} active={!teamId}>全部小组</TaskTab>
+        {scope.teams.map((team) => <TaskTab key={team.id} href={scopedHref(status === "all" ? "/tasks" : `/tasks?status=${status}`, team.id)} active={teamId === team.id}>{team.name}</TaskTab>)}
+      </nav>
+
       <div className="flex flex-wrap gap-2">
-        <TaskTab href="/tasks" active={status === "all"}>
+        <TaskTab href={href("/tasks")} active={status === "all"}>
           全部 <span className="opacity-60">{counts.all}</span>
         </TaskTab>
-        <TaskTab href="/tasks?status=todo" active={status === "todo"}>
+        <TaskTab href={href("/tasks?status=todo")} active={status === "todo"}>
           待办 <span className="opacity-60">{counts.todo}</span>
         </TaskTab>
-        <TaskTab href="/tasks?status=doing" active={status === "doing"}>
+        <TaskTab href={href("/tasks?status=doing")} active={status === "doing"}>
           进行中 <span className="opacity-60">{counts.doing}</span>
         </TaskTab>
-        <TaskTab href="/tasks?status=overdue" active={status === "overdue"}>
+        <TaskTab href={href("/tasks?status=overdue")} active={status === "overdue"}>
           已逾期 <span className="opacity-60">{counts.overdue}</span>
         </TaskTab>
       </div>
@@ -71,15 +88,15 @@ export default async function MyTasksPage({
           {filtered.map((t) => {
             const overdue = !!t.dueDate && t.dueDate < today;
             return (
-              <li key={t.id} className="ac-card flex items-center gap-3 p-4">
+              <li key={t.id} className="ac-card flex flex-wrap items-center gap-3 p-4">
                 <div className="min-w-0 flex-1">
                   <Link
-                    href={`/projects/${t.projectId}?task=${t.id}`}
+                    href={href(`/projects/${t.projectId}?task=${t.id}`)}
                     className="truncate font-medium text-ink hover:text-primary"
                   >
                     {t.title}
                   </Link>
-                  <p className="mt-0.5 text-xs text-ink-faint">{t.projectName}</p>
+                  <p className="mt-0.5 text-xs text-ink-faint">{t.teamName} / {t.projectName}</p>
                 </div>
                 <StatusBadge status={t.status} />
                 <span className={`w-24 shrink-0 text-right text-xs ${overdue ? "text-alert" : "text-ink-faint"}`}>
@@ -106,6 +123,7 @@ function TaskTab({
   return (
     <Link
       href={href}
+      aria-current={active ? "page" : undefined}
       className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[13px] ${
         active
           ? "border-primary bg-primary font-medium text-white"
