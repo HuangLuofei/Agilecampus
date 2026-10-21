@@ -96,7 +96,8 @@ export const teamMembers = pgTable(
   (t) => [uniqueIndex("team_members_team_user_unique").on(t.teamId, t.userId)],
 );
 
-// 邀请码加入的审批流：凭有效邀请码提交申请 → 团队 admin 审核通过才写入 team_members
+// 邀请码/邀请链接加入的审批流：提交申请 → 团队 admin 审核通过才写入 team_members。
+// projectId 可空＝「只加入小组」；非空＝「加入小组并关注某项目」（项目权限仍经小组成员关系判定，此处仅记录意向）。
 export const teamJoinRequestStatusEnum = pgEnum("team_join_request_status", [
   "pending",
   "approved",
@@ -114,6 +115,9 @@ export const teamJoinRequests = pgTable(
     userId: uuid("user_id")
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
     status: teamJoinRequestStatusEnum("status").notNull().default("pending"),
     reviewedBy: uuid("reviewed_by").references(() => users.id, { onDelete: "set null" }),
     reviewedAt: timestamp("reviewed_at"),
@@ -125,6 +129,29 @@ export const teamJoinRequests = pgTable(
       .on(t.teamId, t.userId)
       .where(sql`status = 'pending'`),
   ],
+);
+
+// 可分享邀请链接：明文 token 只在创建时返回一次，库中仅存 sha256 hash（高熵无需慢哈希，hash 可建唯一索引 O(1) 查验）。
+// 组长可撤销（revokedAt）；expiresAt 可空＝长期有效；projectId 可空＝仅入组。
+export const teamInviteLinks = pgTable(
+  "team_invite_links",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    tokenHash: text("token_hash").notNull().unique(),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("team_invite_links_team_idx").on(t.teamId)],
 );
 
 export const projectStatusEnum = pgEnum("project_status", ["active", "archived"]);

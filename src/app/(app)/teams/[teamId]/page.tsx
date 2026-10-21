@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { teams } from "@/db/schema";
 import { getTeamMembership, listTeamMembers } from "@/lib/team";
+import { displayRole } from "@/lib/team-permissions";
 import { listTeamProjectsWithStats } from "@/lib/project";
 import { listTeamResourceUsages } from "@/lib/resource";
 import { listTeamLabels } from "@/lib/label";
@@ -214,8 +215,6 @@ function Section({
   );
 }
 
-const ROLE_LABEL: Record<string, string> = { admin: "管理员", teacher: "导师", student: "成员" };
-
 function RoleBadge({ role }: { role: string }) {
   const cls =
     role === "admin"
@@ -223,5 +222,5 @@ function RoleBadge({ role }: { role: string }) {
       : role === "teacher"
         ? "bg-accent-soft text-accent"
         : "bg-low-soft text-low";
-  return <span className={`ac-badge ${cls}`}>{ROLE_LABEL[role] ?? role}</span>;
+  return <span className={`ac-badge ${cls}`}>{displayRole(role)}</span>;
 }

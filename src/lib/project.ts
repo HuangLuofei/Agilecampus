@@ -11,6 +11,7 @@ import {
 } from "@/db/schema";
 import { AppError, ForbiddenError } from "./errors";
 import { getTeamMembership, requireTeamRole } from "./team";
+import { isTeamLead, requireTeamLead } from "./team-permissions";
 
 export async function createProject(
   actorId: string,
@@ -22,7 +23,7 @@ export async function createProject(
     endDate?: string;
   },
 ) {
-  await requireTeamRole(actorId, teamId, ["admin"]);
+  await requireTeamLead(actorId, teamId);
   const [project] = await db.transaction(async (tx) => {
     const [p] = await tx
       .insert(projects)
@@ -93,7 +94,7 @@ export async function updateProject(
 ) {
   const access = await getProjectForUser(actorId, projectId);
   if (!access) throw new ForbiddenError();
-  if (access.role !== "admin") throw new ForbiddenError();
+  if (!isTeamLead(access.role)) throw new ForbiddenError();
 
   // 显式白名单构造，勿用 ...patch 展开：运行时宽对象可夹带 teamId 等越权字段（同 task.ts 之诫）
   const [updated] = await db
@@ -152,7 +153,7 @@ export async function createMilestone(
   input: { title: string; targetDate?: string },
 ) {
   const access = await getProjectForUser(actorId, projectId);
-  if (!access || access.role !== "admin") throw new ForbiddenError();
+  if (!access || !isTeamLead(access.role)) throw new ForbiddenError();
   const [milestone] = await db
     .insert(milestones)
     .values({ projectId, title: input.title, targetDate: input.targetDate })
