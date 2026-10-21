@@ -12,6 +12,8 @@ import {
 import { AppError, ForbiddenError, isUniqueViolation } from "./errors";
 import { getTeamMembership } from "./team";
 import { createNotification } from "./notification";
+import { getFlagsForMessages, isImportantToUser, type MessageFlags } from "./message-flags";
+import type { MessageFilterMode } from "@/db/schema";
 
 // 会话访问收敛点：DM 校验是双方之一；群聊校验是项目所属团队成员
 async function requireRoomAccess(actorId: string, roomId: string) {
@@ -229,7 +231,12 @@ export async function getOrCreateGroupRoom(actorId: string, projectId: string) {
 }
 
 // 会话消息（升序，含发送者姓名、mine 标记与读回执 readBy）
-export async function listRoomMessages(actorId: string, roomId: string) {
+// filter=important 时只返回「小组级重要 + 我收藏的」（供仅重要视图与成员 2 周报复用）
+export async function listRoomMessages(
+  actorId: string,
+  roomId: string,
+  filter: MessageFilterMode = "all",
+) {
   await requireRoomAccess(actorId, roomId);
   const rows = await db
     .select({
@@ -256,9 +263,12 @@ export async function listRoomMessages(actorId: string, roomId: string) {
     .innerJoin(users, eq(chatRoomMembers.userId, users.id))
     .where(eq(chatRoomMembers.roomId, roomId));
 
-  return rows.map((r) => ({
+  const flags = await getFlagsForMessages(actorId, rows.map((r) => r.id));
+
+  const withFlags = rows.map((r) => ({
     ...r,
     mine: r.senderId === actorId,
+    flags: flags.get(r.id) ?? ({ isImportant: false, savedByMe: false } satisfies MessageFlags),
     readBy: members
       .filter(
         (m) =>
@@ -268,9 +278,64 @@ export async function listRoomMessages(actorId: string, roomId: string) {
       )
       .map((m) => ({ id: m.userId, name: m.name ?? "" })),
   }));
+
+  return filter === "important"
+    ? withFlags.filter((m) => isImportantToUser(m.flags))
+    : withFlags;
+}
+
+// 我的会话摘要列表（含最近活动时间与未读数，供消息中心排序展示）
+export async function listMyConversationSummaries(actorId: string) {
+  const roomIds = await myAccessibleRoomIds(actorId);
+  const unread = await unreadByRoom(actorId, roomIds);
+  if (roomIds.length === 0) return [];
+
+  const rooms = await db
+    .select({
+      roomId: chatRooms.id,
+      type: chatRooms.type,
+      projectId: chatRooms.projectId,
+      dmUserAId: chatRooms.dmUserAId,
+      dmUserBId: chatRooms.dmUserBId,
+      updatedAt: chatRooms.updatedAt,
+    })
+    .from(chatRooms)
+    .where(inArray(chatRooms.id, roomIds));
+
+  // 标题：群聊「项目-团队」/ 私聊对方名
+  const projectIds = rooms.map((r) => r.projectId).filter((x): x is string => !!x);
+  const otherIds = rooms
+    .filter((r) => r.type === "dm")
+    .map((r) => (r.dmUserAId === actorId ? r.dmUserBId : r.dmUserAId))
+    .filter((x): x is string => !!x);
+
+  const projectRows = projectIds.length
+    ? await db
+        .select({ id: projects.id, name: projects.name, teamName: teams.name })
+        .from(projects)
+        .innerJoin(teams, eq(projects.teamId, teams.id))
+        .where(inArray(projects.id, projectIds))
+    : [];
+  const userRows = otherIds.length
+    ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, otherIds))
+    : [];
+  const projectTitles = new Map(projectRows.map((p) => [p.id, `${p.name}-${p.teamName}`]));
+  const userTitles = new Map(userRows.map((u) => [u.id, u.name]));
+
+  return rooms.map((r) => ({
+    roomId: r.roomId,
+    type: r.type,
+    title:
+      r.type === "group"
+        ? (projectTitles.get(r.projectId ?? "") ?? "群聊")
+        : (userTitles.get((r.dmUserAId === actorId ? r.dmUserBId : r.dmUserAId) ?? "") ?? "私聊"),
+    lastActivityAt: r.updatedAt,
+    unread: unread.get(r.roomId) ?? 0,
+  }));
 }
 
 // 会话元信息（深链自动打开用）：标题 = 群聊「项目-团队」/ 私聊对方名
+// canManageImportant：群聊里当前用户是否为该团队组长（仅组长可标小组级重要）
 export async function getRoomMeta(actorId: string, roomId: string) {
   const { room, kind } = await requireRoomAccess(actorId, roomId);
   if (kind === "dm") {
@@ -278,17 +343,19 @@ export async function getRoomMeta(actorId: string, roomId: string) {
     const [other] = otherId
       ? await db.select({ name: users.name }).from(users).where(eq(users.id, otherId))
       : [];
-    return { id: room.id, type: "dm" as const, title: other?.name ?? "私聊" };
+    return { id: room.id, type: "dm" as const, title: other?.name ?? "私聊", canManageImportant: false };
   }
   const [project] = await db
-    .select({ name: projects.name, teamName: teams.name })
+    .select({ name: projects.name, teamName: teams.name, teamId: projects.teamId })
     .from(projects)
     .innerJoin(teams, eq(projects.teamId, teams.id))
     .where(eq(projects.id, room.projectId!));
+  const member = project ? await getTeamMembership(actorId, project.teamId) : null;
   return {
     id: room.id,
     type: "group" as const,
     title: `${project?.name ?? "?"}-${project?.teamName ?? "?"}`,
+    canManageImportant: member?.role === "admin",
   };
 }
 
@@ -348,12 +415,15 @@ export async function sendMessage(actorId: string, roomId: string, content: stri
 // 标记已读：upsert 读水位 = now
 export async function markRoomRead(actorId: string, roomId: string) {
   await requireRoomAccess(actorId, roomId);
+  // 读水位必须用数据库时钟（now()）：消息 createdAt 是 defaultNow()（微秒精度），
+  // 若用 JS new Date()（毫秒级且走主机时钟），同毫秒标记已读或时钟偏差会让水位
+  // 落在消息之前，消息被误判为未读（读回执 readBy 同理）。
   await db
     .insert(chatRoomMembers)
-    .values({ roomId, userId: actorId, lastReadAt: new Date() })
+    .values({ roomId, userId: actorId, lastReadAt: sql`now()` })
     .onConflictDoUpdate({
       target: [chatRoomMembers.roomId, chatRoomMembers.userId],
-      set: { lastReadAt: new Date() },
+      set: { lastReadAt: sql`now()` },
     });
 }
 

@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { listMyChatOverview } from "@/lib/chat";
+import { listMyChatOverview, listMyConversationSummaries } from "@/lib/chat";
 import { listNotifications } from "@/lib/notification";
 import { listMyProjects } from "@/lib/project";
+import { getMessagePreferences, listPinnedRoomIds } from "@/lib/message-preferences";
 import { ChatApp } from "../chat/chat-app";
 import { NotificationsPanel } from "./notifications-panel";
 
@@ -42,19 +43,39 @@ async function ChatTab({
   userName: string;
   initialRoomId?: string | null;
 }) {
-  const overview = await listMyChatOverview(userId);
+  const [overview, preferences, pinnedIds, conversations] = await Promise.all([
+    listMyChatOverview(userId),
+    getMessagePreferences(userId),
+    listPinnedRoomIds(userId),
+    listMyConversationSummaries(userId),
+  ]);
   return (
-    <ChatApp userId={userId} userName={userName} initial={overview} initialRoomId={initialRoomId} />
+    <ChatApp
+      userId={userId}
+      userName={userName}
+      initial={overview}
+      initialRoomId={initialRoomId}
+      initialPreferences={preferences}
+      initialPinned={[...pinnedIds]}
+      initialConversations={conversations}
+    />
   );
 }
 
 async function NotificationsTab({ userId }: { userId: string }) {
-  const [items, myProjects] = await Promise.all([
+  const [items, myProjects, preferences] = await Promise.all([
     listNotifications(userId, 100),
     listMyProjects(userId),
+    getMessagePreferences(userId),
   ]);
   const projects = myProjects
     .filter((p) => p.status === "active")
     .map((p) => ({ id: p.id, name: p.name }));
-  return <NotificationsPanel items={items} projects={projects} />;
+  return (
+    <NotificationsPanel
+      items={items}
+      projects={projects}
+      initialSortMode={preferences.notificationSortMode}
+    />
+  );
 }

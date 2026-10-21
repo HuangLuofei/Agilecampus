@@ -518,6 +518,50 @@ export const chatMessages = pgTable('chat_messages', {
   index("chat_messages_room_created_idx").on(t.roomId, t.createdAt),
 ]);
 
+// 消息标记：important=小组级重要（组长设置，每条消息至多一条）；saved=个人收藏（每人独立）。
+// 一行 = (消息, 操作者, 标记类型) 唯一；kind 区分两种语义。
+export const chatMessageFlagKindEnum = pgEnum("chat_message_flag_kind", ["important", "saved"]);
+
+export const chatMessageFlags = pgTable('chat_message_flags', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  messageId: uuid('message_id').notNull().references(() => chatMessages.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind: chatMessageFlagKindEnum('kind').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("chat_message_flags_unique").on(t.messageId, t.userId, t.kind),
+  index("chat_message_flags_message_idx").on(t.messageId),
+  index("chat_message_flags_user_kind_idx").on(t.userId, t.kind),
+]);
+
+// 会话/通知排序模式：time=按最近活动倒序（未读不置顶）；unread=未读优先。
+// 聊天与通知分开存，两者可各自独立设置。
+export const messageSortModeEnum = pgEnum("message_sort_mode", ["time", "unread"]);
+export type MessageSortMode = (typeof messageSortModeEnum.enumValues)[number];
+// 聊天消息过滤：all=全部；important=仅重要（小组级重要 + 我收藏的）
+export const messageFilterModeEnum = pgEnum("message_filter_mode", ["all", "important"]);
+export type MessageFilterMode = (typeof messageFilterModeEnum.enumValues)[number];
+
+// 每用户一份的消息中心偏好（含聊天排序、通知排序、消息过滤；一行一用户）
+export const userMessagePreferences = pgTable('user_message_preferences', {
+  userId: uuid('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  chatSortMode: messageSortModeEnum('chat_sort_mode').notNull().default('time'),
+  notificationSortMode: messageSortModeEnum('notification_sort_mode').notNull().default('time'),
+  chatFilterMode: messageFilterModeEnum('chat_filter_mode').notNull().default('all'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+});
+
+// 个人会话置顶（只影响本人视图）：项目群聊可置顶于普通会话之前
+export const userPinnedRooms = pgTable('user_pinned_rooms', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  roomId: uuid('room_id').notNull().references(() => chatRooms.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("user_pinned_rooms_unique").on(t.roomId, t.userId),
+  index("user_pinned_rooms_user_idx").on(t.userId),
+]);
+
 // ==================== 资产管理模块（assets） ====================
 
 // 资产类型：file=上传文件（url 存文件地址），link=外部链接（url 存链接地址）

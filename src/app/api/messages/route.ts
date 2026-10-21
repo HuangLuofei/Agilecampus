@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { listRoomMessages, listRoomMembers, listMyRooms, getRoomMeta, markRoomRead } from "@/lib/chat";
+import { getMessagePreferences } from "@/lib/message-preferences";
 import { AppError, ForbiddenError } from "@/lib/errors";
 
 // 轮询：拉取某会话消息 + 全量未读（供侧栏红点）
@@ -9,21 +10,35 @@ export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-  const roomId = new URL(req.url).searchParams.get("roomId");
+  const url = new URL(req.url);
+  const roomId = url.searchParams.get("roomId");
   if (!roomId || !z.uuid().safeParse(roomId).success) {
     return NextResponse.json({ error: "参数无效" }, { status: 400 });
   }
+  // filter=all|important；不传则跟随用户偏好
+  const filterParam = url.searchParams.get("filter");
+  const filter =
+    filterParam === "all" || filterParam === "important" ? filterParam : undefined;
 
   try {
     // 拉取即视为「正在查看该会话」：推进读水位，让发消息方实时看到已读回执
     await markRoomRead(session.user.id, roomId);
-    const [messages, room, members, { groupRooms, dmRooms, unreadTotal }] = await Promise.all([
-      listRoomMessages(session.user.id, roomId),
+    const [messages, room, members, { groupRooms, dmRooms, unreadTotal }, prefs] = await Promise.all([
+      listRoomMessages(session.user.id, roomId, filter ?? "all"),
       getRoomMeta(session.user.id, roomId),
       listRoomMembers(session.user.id, roomId),
       listMyRooms(session.user.id),
+      getMessagePreferences(session.user.id),
     ]);
-    return NextResponse.json({ messages, room, members, groupRooms, dmRooms, unreadTotal });
+    return NextResponse.json({
+      messages,
+      room,
+      members,
+      groupRooms,
+      dmRooms,
+      unreadTotal,
+      preferences: prefs,
+    });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: "没有权限" }, { status: 403 });
     if (e instanceof AppError) return NextResponse.json({ error: e.message }, { status: 400 });

@@ -65,7 +65,7 @@ describe("createUser", () => {
     await tx;
 
     await expect(pending).rejects.toBeInstanceOf(AppError);
-    await expect(pending).rejects.toThrow("该邮箱已被注册");
+    await expect(pending).rejects.toThrow("该邮箱或学号已被注册");
   });
 
   it("邮箱统一转小写存储，大小写不同视为同一邮箱", async () => {

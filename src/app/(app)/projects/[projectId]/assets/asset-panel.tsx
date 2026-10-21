@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type { AssetItem } from "./asset-types";
-import { formatSize } from "./asset-types";
+import { formatSize, getAssetIcon, getAssetTypeLabel } from "./asset-types";
 
 // 资产管理主面板：新建资产（上传文件 / 外部链接）+ 列表（预览 / 下载 / 重命名 / 删除）。
 // 项目归档后（projectArchived）上传、重命名、删除按钮一律置灰禁用。
@@ -284,13 +284,14 @@ export function AssetPanel({
                       </div>
                     ) : (
                       <p className="flex flex-wrap items-center gap-2 font-medium text-ink">
+                        <span aria-hidden>{getAssetIcon(a.fileMime, a.name, a.assetType)}</span>
                         <span className="break-all">{a.name}</span>
                         <span
                           className={`ac-badge ${
                             a.assetType === "link" ? "bg-primary-soft text-primary" : "bg-sunken text-ink-soft"
                           }`}
                         >
-                          {a.assetType === "link" ? "链接" : "文件"}
+                          {getAssetTypeLabel(a.fileMime, a.name, a.assetType)}
                         </span>
                       </p>
                     )}

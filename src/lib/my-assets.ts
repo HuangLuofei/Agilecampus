@@ -28,6 +28,7 @@ export type MyAssetRow = {
   assetType: "file" | "link" | null;
   url: string | null;
   fileSize: number | null;
+  fileMime: string | null;
 };
 
 // 正文摘要：命中关键词时截取命中处附近，否则取开头；换行折成空格
@@ -106,6 +107,7 @@ export async function listMyAssets(
         assetType: assets.assetType,
         url: assets.url,
         fileSize: assets.fileSize,
+        fileMime: assets.fileMime,
         updatedAt: assets.updatedAt,
         uploadUserName: users.name,
       })
@@ -139,6 +141,7 @@ export async function listMyAssets(
       assetType: null,
       url: null,
       fileSize: null,
+      fileMime: null,
     })),
     ...assetRows.map((a) => ({
       kind: "asset" as const,
@@ -152,6 +155,7 @@ export async function listMyAssets(
       assetType: a.assetType,
       url: a.url,
       fileSize: a.fileSize,
+      fileMime: a.fileMime,
     })),
   ];
 
