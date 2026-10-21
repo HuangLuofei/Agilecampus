@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
 import { teamMembers, teams } from "@/db/schema";
+import { displayRole } from "@/lib/team-permissions";
 import { TeamForms } from "./team-forms";
 
 export default async function TeamsPage() {
@@ -68,8 +69,6 @@ export default async function TeamsPage() {
   );
 }
 
-const ROLE_LABEL: Record<string, string> = { admin: "管理员", teacher: "导师", student: "成员" };
-
 function RoleBadge({ role }: { role: string }) {
   const cls =
     role === "admin"
@@ -77,5 +76,5 @@ function RoleBadge({ role }: { role: string }) {
       : role === "teacher"
         ? "bg-accent-soft text-accent"
         : "bg-low-soft text-low";
-  return <span className={`ac-badge ${cls}`}>{ROLE_LABEL[role] ?? role}</span>;
+  return <span className={`ac-badge ${cls}`}>{displayRole(role)}</span>;
 }

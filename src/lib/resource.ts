@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { resourceUsages, users } from "@/db/schema";
 import { AppError, ForbiddenError } from "./errors";
 import { getTeamMembership } from "./team";
+import { isTeamLead } from "./team-permissions";
 import { notifyTeamMembers } from "./notification";
 
 export interface CreateResourceUsageInput {
@@ -60,7 +61,7 @@ export async function endResourceUsage(actorId: string, usageId: string) {
 
   if (usage.userId !== actorId) {
     const membership = await getTeamMembership(actorId, usage.teamId);
-    if (!membership || membership.role !== "admin") throw new ForbiddenError();
+    if (!membership || !isTeamLead(membership.role)) throw new ForbiddenError();
   }
   if (usage.endTime) throw new AppError("该占用已结束");
 

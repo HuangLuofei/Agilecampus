@@ -3,10 +3,12 @@ import { eq } from "drizzle-orm";
 import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { teamMembers, teams, users } from "@/db/schema";
-import { getTeamMembership, listPendingJoinRequests } from "@/lib/team";
+import { projects, teamMembers, teams, users } from "@/db/schema";
+import { getTeamMembership, listInviteLinks, listPendingJoinRequests } from "@/lib/team";
+import { displayRole, isTeamLead } from "@/lib/team-permissions";
 import { updateRoleAction } from "./actions";
 import { reviewJoinRequestAction } from "../../actions";
+import { InvitePanel } from "./invite-panel";
 import { BackButton } from "@/components/back-button";
 
 export default async function MembersPage({
@@ -40,8 +42,23 @@ export default async function MembersPage({
     .innerJoin(users, eq(teamMembers.userId, users.id))
     .where(eq(teamMembers.teamId, teamId));
 
-  const isAdmin = me.role === "admin";
-  const joinRequests = isAdmin ? await listPendingJoinRequests(teamId) : [];
+  const isLead = isTeamLead(me.role);
+
+  // 组长管理面：待审申请 + 邀请链接 + 可关联项目
+  const [joinRequests, links, teamProjects] = isLead
+    ? await Promise.all([
+        listPendingJoinRequests(teamId),
+        listInviteLinks(session.user.id, teamId),
+        db
+          .select({ id: projects.id, name: projects.name })
+          .from(projects)
+          .where(eq(projects.teamId, teamId)),
+      ])
+    : [
+        [] as Awaited<ReturnType<typeof listPendingJoinRequests>>,
+        [] as Awaited<ReturnType<typeof listInviteLinks>>,
+        [] as { id: string; name: string }[],
+      ];
 
   return (
     <main className="mx-auto max-w-2xl space-y-6">
@@ -50,7 +67,7 @@ export default async function MembersPage({
         <h1 className="font-display text-2xl font-semibold text-ink">{team.name} · 成员</h1>
       </header>
 
-      {isAdmin && joinRequests.length > 0 && (
+      {isLead && joinRequests.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-sm font-medium text-ink-soft">
             加入申请 <span className="ac-badge bg-primary-soft text-primary">{joinRequests.length}</span>
@@ -63,6 +80,9 @@ export default async function MembersPage({
                     {r.userName}
                     {r.studentId && <span className="ml-2 text-xs text-ink-faint">学号 {r.studentId}</span>}
                   </span>
+                  {r.projectName && (
+                    <span className="ml-2 text-xs text-accent">关注「{r.projectName}」</span>
+                  )}
                   <p className="mt-0.5 text-xs text-ink-faint">
                     申请于 {r.createdAt.toLocaleString("zh-CN", { hour12: false })}
                   </p>
@@ -90,6 +110,7 @@ export default async function MembersPage({
           </ul>
         </section>
       )}
+
       <ul className="space-y-2">
         {members.map((m) => (
           <li key={m.userId} className="ac-card flex items-center justify-between p-4">
@@ -107,24 +128,27 @@ export default async function MembersPage({
                 </p>
               )}
             </div>
-            {isAdmin && m.userId !== session.user.id ? (
+            {isLead && m.userId !== session.user.id ? (
               <form action={updateRoleAction} className="flex items-center gap-2">
                 <input type="hidden" name="teamId" value={teamId} />
                 <input type="hidden" name="userId" value={m.userId} />
                 {/* key=role：角色变更后强制重挂载，使 defaultValue 重新采纳（非受控 select 不更新已挂载节点） */}
                 <select key={m.role} name="role" defaultValue={m.role} className="ac-field w-auto py-1 text-sm">
-                  <option value="admin">admin</option>
-                  <option value="teacher">teacher</option>
-                  <option value="student">student</option>
+                  <option value="admin">组长</option>
+                  <option value="student">成员</option>
+                  {/* teacher 为遗留角色，仅当成员当前是导师时保留该选项，避免误发放 */}
+                  {m.role === "teacher" && <option value="teacher">导师</option>}
                 </select>
                 <button className="ac-btn px-2 py-1 text-xs">保存</button>
               </form>
             ) : (
-              <span className="text-sm text-ink-soft">{m.role}</span>
+              <span className="text-sm text-ink-soft">{displayRole(m.role)}</span>
             )}
           </li>
         ))}
       </ul>
+
+      {isLead && <InvitePanel teamId={teamId} links={links} projects={teamProjects} />}
     </main>
   );
 }
