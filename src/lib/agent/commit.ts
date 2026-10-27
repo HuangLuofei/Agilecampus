@@ -2,6 +2,7 @@ import { z } from "zod";
 import { db } from "@/db";
 import { createMilestone, createProject, getProjectForUser } from "@/lib/project";
 import { createTask, listProjectTasks, updateTask } from "@/lib/task";
+import { createWeeklyReport, generateWeeklyReport } from "@/lib/weekly-report";
 import { ForbiddenError } from "@/lib/errors";
 import type { WriteToolName } from "./tools";
 
@@ -51,7 +52,18 @@ const createMilestoneSchema = z.object({
   targetDate: z.string().optional(),
 });
 
-export type CommitResult = { committed: number; conflicts: string[] };
+const confirmReportSchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  includeRisks: z.boolean().optional(),
+});
+
+export type CommitResult = {
+  committed: number;
+  conflicts: string[];
+  reportId?: string;
+  teamId?: string;
+};
 
 // 落库：绝不信 Agent 输出——入口重校访问权，每类先施 Zod，再走图二 lib（lib 内建权限/归属校验）
 export async function commitDraft(
@@ -113,6 +125,26 @@ export async function commitDraft(
       // createMilestone 内部以 role === "admin" 收口，非管理员在此被拒
       await createMilestone(actorId, projectId, d);
       return { committed: 1, conflicts: [] };
+    }
+    case "confirm_report": {
+      const d = confirmReportSchema.parse(draft);
+      // 确认卡片落库＝真正生成周报草稿（团队维度，范围默认聚焦当前项目）
+      const { title, content } = await generateWeeklyReport(actorId, {
+        teamId: access.project.teamId,
+        projectId,
+        startDate: d.startDate,
+        endDate: d.endDate,
+        includeRisks: d.includeRisks ?? true,
+      });
+      const report = await createWeeklyReport(actorId, {
+        teamId: access.project.teamId,
+        projectId,
+        periodStart: d.startDate,
+        periodEnd: d.endDate,
+        title,
+        content,
+      });
+      return { committed: 1, conflicts: [], reportId: report.id, teamId: access.project.teamId };
     }
   }
 }

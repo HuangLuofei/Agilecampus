@@ -37,6 +37,7 @@ export const notificationTypeEnum = pgEnum("notification_type", [
   "team_join_requested",
   "team_join_approved",
   "team_join_rejected",
+  "weekly_report_published",
 ]);
 export type NotificationType = (typeof notificationTypeEnum.enumValues)[number];
 
@@ -204,6 +205,10 @@ export const tasks = pgTable(
     milestoneId: uuid("milestone_id").references(() => milestones.id, {
       onDelete: "set null",
     }),
+    // 迭代归属（可空＝未排入任何迭代）。迭代删则任务保留、仅解除归属。
+    iterationId: uuid("iteration_id").references(() => iterations.id, {
+      onDelete: "set null",
+    }),
     // 子任务层级：自引用，空＝顶层任务。父任务删则子任务随之（cascade）。
     // 自引用外键须显式标注 AnyPgColumn，否则 TS 推断成环。
     parentTaskId: uuid("parent_task_id").references((): AnyPgColumn => tasks.id, {
@@ -230,6 +235,7 @@ export const tasks = pgTable(
     index("tasks_project_idx").on(t.projectId),
     index("tasks_assignee_idx").on(t.assigneeId),
     index("tasks_parent_idx").on(t.parentTaskId),
+    index("tasks_iteration_idx").on(t.iterationId),
   ],
 );
 
@@ -633,5 +639,70 @@ export const assets = pgTable(
     index("assets_project_idx").on(t.projectId),
     index("assets_task_idx").on(t.taskId),
     index("assets_doc_idx").on(t.docId),
+  ],
+);
+
+// ==================== 迭代与周报（成员 2） ====================
+
+export const iterationStatusEnum = pgEnum("iteration_status", [
+  "planned",
+  "active",
+  "done",
+]);
+export type IterationStatus = (typeof iterationStatusEnum.enumValues)[number];
+
+// 迭代：项目内一个时间盒。任务经 tasks.iterationId 归入（可空＝未排入任何迭代）。
+// 同项目内日期重叠由业务层提示（lib/iteration.ts），不落唯一约束。
+export const iterations = pgTable(
+  "iterations",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    projectId: uuid("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    startDate: date("start_date"),
+    endDate: date("end_date"),
+    status: iterationStatusEnum("status").notNull().default("planned"),
+    createdById: uuid("created_by_id").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("iterations_project_idx").on(t.projectId)],
+);
+
+export const weeklyReportStatusEnum = pgEnum("weekly_report_status", [
+  "draft",
+  "published",
+]);
+export type WeeklyReportStatus = (typeof weeklyReportStatusEnum.enumValues)[number];
+
+// 周报：挂在小组（teamId 必填），可选聚焦某项目（projectId 可空＝小组级周报）。
+// 草稿人人可存（draftBy），正式发布仅组长（publishedBy），发布后通知小组成员。
+export const weeklyReports = pgTable(
+  "weekly_reports",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    // 聚焦项目（可空）。项目删除时解除关联、报告保留（teamId 才是权限锚点）。
+    projectId: uuid("project_id").references(() => projects.id, {
+      onDelete: "set null",
+    }),
+    periodStart: date("period_start").notNull(),
+    periodEnd: date("period_end").notNull(),
+    title: text("title").notNull(),
+    content: text("content").notNull().default(""),
+    status: weeklyReportStatusEnum("status").notNull().default("draft"),
+    draftBy: uuid("draft_by").references(() => users.id, { onDelete: "set null" }),
+    publishedBy: uuid("published_by").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("weekly_reports_team_created_idx").on(t.teamId, t.createdAt),
+    index("weekly_reports_project_idx").on(t.projectId),
   ],
 );
