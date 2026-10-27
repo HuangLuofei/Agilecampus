@@ -1,6 +1,6 @@
 import { and, eq, gte, inArray, isNotNull, lte, ne, or } from "drizzle-orm";
 import { db } from "@/db";
-import { notifications, projects, taskAssignees, tasks, teamMembers, users } from "@/db/schema";
+import { notifications, projects, taskAssignees, tasks, taskDependencies, teamMembers, users } from "@/db/schema";
 import { classifyDue, DUE_SOON_DAYS, toDayString, todayStartMs } from "./due";
 import { createNotification } from "./notification";
 import { listManagedProjectIds } from "./project";
@@ -26,7 +26,7 @@ export async function syncDueSoonNotifications(
     scope.push(inArray(tasks.projectId, managedProjectIds));
   }
 
-  const rows = await db
+    const rows = await db
     .select({
       id: tasks.id,
       title: tasks.title,
@@ -36,6 +36,7 @@ export async function syncDueSoonNotifications(
       status: tasks.status,
       assigneeId: tasks.assigneeId,
       assigneeName: users.name,
+      priority: tasks.priority, // ★ 新增这一行
     })
     .from(tasks)
     .leftJoin(projects, eq(projects.id, tasks.projectId))
@@ -59,12 +60,35 @@ export async function syncDueSoonNotifications(
     ).map((r) => r.id),
   );
 
+    // 查出所有没完成的依赖关系，用来判断是否被阻塞
+  const allDeps = await db
+    .select({ successorId: taskDependencies.successorId, predId: taskDependencies.predecessorId })
+    .from(taskDependencies);
+  
+  const allTasksInfo = await db
+    .select({ id: tasks.id, status: tasks.status, title: tasks.title })
+    .from(tasks);
+  
+  const taskMap = new Map(allTasksInfo.map(t => [t.id, t]));
+
   const items = rows
-    .map((r) => ({
-      ...r,
-      mine: r.assigneeId === userId || myAssignedTaskIds.has(r.id),
-      state: classifyDue(r.dueDate, r.status, todayMs),
-    }))
+    .map((r) => {
+      // 找这个任务的所有前置任务
+      const preds = allDeps
+        .filter(d => d.successorId === r.id)
+        .map(d => taskMap.get(d.predId))
+        .filter(Boolean);
+      
+      // 滤出没做完的前置任务
+      const blockingPreds = preds.filter(p => p!.status !== "done");
+      
+      return {
+        ...r,
+        mine: r.assigneeId === userId || myAssignedTaskIds.has(r.id),
+        state: classifyDue(r.dueDate, r.status, todayMs),
+        blockingNames: blockingPreds.map(p => p!.title), // ★ 记录阻塞它的任务名
+      };
+    })
     .filter((r) => r.state !== "ok");
 
   const dueSoon = items.filter((r) => r.state === "soon").length;
@@ -99,14 +123,30 @@ export async function syncDueSoonNotifications(
     const names = byAssignee.get(r.id)?.map((a) => a.name).join("、") ?? r.assigneeName ?? "未分配";
     const suffix = r.mine ? "" : `（项目：${r.projectName ?? "—"}｜负责人：${names}）`;
     try {
+      // ★ 1. 判断是否是强提醒（高优先级 + 临期/逾期）
+      const isUrgent = r.priority === "high";
+      
+      // ★ 2. 判断阻塞原因（前置任务未完成）
+      let blockMsg = "";
+      if (r.blockingNames && r.blockingNames.length > 0) {
+        blockMsg = `【被阻塞：前置任务(${r.blockingNames.join("、")})未完成】`;
+      }
+
+      // ★ 3. 组合强提醒标题
+      let notifyTitle = r.state === "overdue" ? "任务已逾期" : "任务即将到期";
+      if (isUrgent) {
+        notifyTitle = `⚠️ [强提醒] ${notifyTitle}`;
+      }
+
+      // ★ 4. 发送通知
       await createNotification({
         userId,
         type: "task_due_soon",
-        title: r.state === "overdue" ? "任务已逾期" : "任务即将到期",
+        title: notifyTitle,
         content:
           r.state === "overdue"
-            ? `任务《${r.title}》已逾期（截止 ${r.dueDate}）${suffix}`
-            : `任务《${r.title}》将于 ${r.dueDate} 到期${suffix}`,
+            ? `${blockMsg}任务《${r.title}》已逾期（截止 ${r.dueDate}）${suffix}`
+            : `${blockMsg}任务《${r.title}》将于 ${r.dueDate} 到期${suffix}`,
         linkUrl,
         projectId: r.projectId,
       });
