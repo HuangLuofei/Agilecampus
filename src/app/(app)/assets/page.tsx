@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listMyProjects } from "@/lib/project";
 import { listMyAssets, type MyAssetRow } from "@/lib/my-assets";
 import { formatSize, getAssetIcon, getAssetTypeLabel } from "@/app/(app)/projects/[projectId]/assets/asset-types";
 import { BackButton } from "@/components/back-button";
 import { AssetCreator, AssetDeleteButton } from "./asset-actions";
+import { getWorkbenchScope } from "@/lib/workbench";
+import { scopedHref } from "@/lib/workbench-navigation";
+import { ForbiddenError } from "@/lib/errors";
 
 function fmtDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -48,9 +51,15 @@ export default async function MyAssetsPage({
   if (!session?.user) redirect("/login");
 
   const sp = await searchParams;
+  if (Array.isArray(sp.team)) notFound();
+  const teamId = typeof sp.team === "string" ? sp.team : null;
+  const scope = await getWorkbenchScope(session.user.id, teamId).catch((error) => {
+    if (error instanceof ForbiddenError) notFound();
+    throw error;
+  });
   const q = typeof sp.q === "string" ? sp.q : "";
 
-  const projects = await listMyProjects(session.user.id);
+  const projects = (await listMyProjects(session.user.id)).filter((project) => !teamId || project.teamId === teamId);
   const rows = await listMyAssets(
     projects.map((p) => p.id),
     { q },
@@ -66,9 +75,10 @@ export default async function MyAssetsPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-3">
-        <BackButton fallbackHref="/projects" />
+        <BackButton fallbackHref={scopedHref("/projects", teamId)} />
         <h1 className="font-display text-2xl font-semibold text-ink">我的资产</h1>
-        <p className="text-sm text-ink-soft">我参与的全部项目下的云文档与资料。</p>
+        <p className="text-sm text-ink-soft">{scope.selectedTeam ? `「${scope.selectedTeam.name}」内` : "我参与的全部小组中"}的云文档与资料。</p>
+        {teamId && <Link href="/assets" className="text-sm text-primary">查看全部小组资产</Link>}
       </header>
 
       {projects.length === 0 ? (
@@ -78,6 +88,7 @@ export default async function MyAssetsPage({
       ) : (
         <>
           <AssetCreator
+            key={teamId ?? "all"}
             projects={projects.map((p) => ({
               id: p.id,
               name: p.name,
@@ -87,6 +98,7 @@ export default async function MyAssetsPage({
           />
 
           <form method="get" className="ac-card flex flex-wrap items-end gap-3 p-4">
+            {teamId && <input type="hidden" name="team" value={teamId} />}
             <label className="min-w-48 flex-1 space-y-1">
               <span className="text-xs font-medium text-ink-soft">搜索</span>
               <input
@@ -98,7 +110,7 @@ export default async function MyAssetsPage({
             </label>
             <button className="ac-btn">搜索</button>
             {q && (
-              <Link href="/assets" className="ac-btn-ghost">
+              <Link href={scopedHref("/assets", teamId)} className="ac-btn-ghost">
                 清除
               </Link>
             )}
@@ -115,7 +127,7 @@ export default async function MyAssetsPage({
                   <div className="flex items-center gap-2">
                     <span aria-hidden className="h-4 w-1 rounded-full bg-primary" />
                     <Link
-                      href={`/projects/${project.id}`}
+                      href={scopedHref(`/projects/${project.id}`, teamId)}
                       className="font-display text-base font-semibold text-ink hover:text-primary"
                     >
                       {project.name}
@@ -129,6 +141,7 @@ export default async function MyAssetsPage({
                         key={`${row.kind}-${row.id}`}
                         row={row}
                         q={q}
+                        teamId={teamId}
                         archived={project.status === "archived"}
                       />
                     ))}
@@ -143,7 +156,7 @@ export default async function MyAssetsPage({
   );
 }
 
-function AssetRowItem({ row, q, archived }: { row: MyAssetRow; q: string; archived: boolean }) {
+function AssetRowItem({ row, q, archived, teamId }: { row: MyAssetRow; q: string; archived: boolean; teamId: string | null }) {
   const isDoc = row.kind === "document";
   const isFile = row.assetType === "file";
   // 文件图标/标签走 asset-types 统一口径（优先 MIME，回退扩展名）；文档行保持「文档」
@@ -179,7 +192,7 @@ function AssetRowItem({ row, q, archived }: { row: MyAssetRow; q: string; archiv
       <div className="ac-card flex items-center justify-between gap-4 p-4 transition-colors hover:border-primary">
         {isDoc ? (
           <Link
-            href={`/projects/${row.projectId}/docs/${row.id}`}
+            href={scopedHref(`/projects/${row.projectId}/docs/${row.id}`, teamId)}
             className="min-w-0 flex-1"
           >
             {body}

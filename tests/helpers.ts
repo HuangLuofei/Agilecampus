@@ -1,5 +1,8 @@
 import { db } from "@/db";
 import { sql } from "drizzle-orm";
+import { existsSync, readFileSync } from "node:fs";
+import { parse } from "dotenv";
+import { assertTestDatabase } from "./db-safety";
 
 // 测试库为多文件共享。业务里的站内通知是 fire-and-forget（`void notify…`），
 // 某条游离的 INSERT 可能正与本次 TRUNCATE 争锁，偶发 Postgres 死锁（40P01）。
@@ -30,5 +33,7 @@ async function truncateAll(attempts = 8) {
 }
 
 export async function resetDb() {
+  const developmentUrl = existsSync(".env") ? parse(readFileSync(".env")).DATABASE_URL : undefined;
+  assertTestDatabase(process.env.DATABASE_URL, developmentUrl);
   await truncateAll();
 }

@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { createDocumentAction, type FormState } from "./actions";
 
-export function NewDocForm({ projectId }: { projectId: string }) {
+export function NewDocForm({ projectId, teamId }: { projectId: string; teamId?: string | null }) {
   const [state, formAction, pending] = useActionState<FormState, FormData>(
     createDocumentAction,
     null,
@@ -12,6 +12,7 @@ export function NewDocForm({ projectId }: { projectId: string }) {
   return (
     <form action={formAction} className="ac-card space-y-3 p-5">
       <input type="hidden" name="projectId" value={projectId} />
+      {teamId && <input type="hidden" name="team" value={teamId} />}
       <h2 className="font-display text-base font-semibold text-ink">新建文档</h2>
       <div className="grid gap-3 sm:grid-cols-2">
         <input name="title" placeholder="文档标题，如 需求文档 / 会议纪要" className="ac-field" />

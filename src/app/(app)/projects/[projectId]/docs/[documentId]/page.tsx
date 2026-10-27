@@ -7,6 +7,7 @@ import { getDocument } from "@/lib/document";
 import { MarkdownBody } from "../markdown";
 import { deleteDocumentAction } from "../actions";
 import { BackButton } from "@/components/back-button";
+import { scopedHref } from "@/lib/workbench-navigation";
 
 function fmtTime(d: Date): string {
   const p = (n: number) => String(n).padStart(2, "0");
@@ -15,8 +16,10 @@ function fmtTime(d: Date): string {
 
 export default async function DocViewPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ projectId: string; documentId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { projectId, documentId } = await params;
   const session = await auth();
@@ -26,6 +29,8 @@ export default async function DocViewPage({
 
   const access = await getProjectForUser(session.user.id, projectId);
   if (!access) notFound();
+  const sp = await searchParams;
+  const teamId = sp.team === access.project.teamId ? access.project.teamId : null;
 
   const doc = await getDocument(session.user.id, documentId);
   if (!doc || doc.projectId !== projectId) notFound();
@@ -33,16 +38,18 @@ export default async function DocViewPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6">
       <header className="space-y-3">
-        <BackButton fallbackHref={`/projects/${projectId}/docs`} />
+        <BackButton fallbackHref={scopedHref(`/projects/${projectId}/docs`, teamId)} />
+        <Link href={scopedHref("/projects", teamId)} className="text-sm text-primary">返回工作台</Link>
         <div className="flex items-start justify-between gap-3">
           <h1 className="font-display text-2xl font-semibold text-ink">{doc.title}</h1>
           <div className="flex shrink-0 gap-2">
-            <Link href={`/projects/${projectId}/docs/${documentId}/edit`} className="ac-btn-ghost">
+            <Link href={scopedHref(`/projects/${projectId}/docs/${documentId}/edit`, teamId)} className="ac-btn-ghost">
               编辑
             </Link>
             <form action={deleteDocumentAction}>
               <input type="hidden" name="projectId" value={projectId} />
               <input type="hidden" name="documentId" value={documentId} />
+              {teamId && <input type="hidden" name="team" value={teamId} />}
               <button className="ac-btn-ghost text-high hover:border-high hover:text-high">
                 删除
               </button>

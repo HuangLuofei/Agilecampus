@@ -4,18 +4,13 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { logoutAction } from "./logout-action";
+import { displayStudentRole, scopedHref } from "@/lib/workbench-navigation";
 
 export type SidebarTeam = {
   id: string;
   name: string;
   role: string;
   projects: { id: string; name: string }[];
-};
-
-const ROLE_LABEL: Record<string, string> = {
-  admin: "管理员",
-  teacher: "导师",
-  student: "成员",
 };
 
 export function AppSidebar({
@@ -31,6 +26,9 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const requestedTeam = searchParams.get("team");
+  const focusedTeam = teams.find((team) => team.id === requestedTeam);
+  const workbenchHref = scopedHref("/projects", focusedTeam?.id);
   const [messagesOpen, setMessagesOpen] = useState(true);
   const [settingsOpen, setSettingsOpen] = useState(true);
   const totalUnread = unreadChats + unreadNotifications;
@@ -47,7 +45,7 @@ export function AppSidebar({
   return (
     <aside className="sticky top-0 flex h-screen w-60 shrink-0 flex-col bg-[linear-gradient(180deg,#004a9e_0%,#003c88_45%,#002f66_100%)] text-white">
       {/* 品牌 */}
-      <Link href="/projects" className="flex items-center gap-2.5 border-b border-white/15 px-4 py-4">
+      <Link href={workbenchHref} className="flex items-center gap-2.5 border-b border-white/15 px-4 py-4">
         <span className="grid h-7 w-7 place-items-center rounded-md bg-white font-display text-sm font-bold text-navy">
           A
         </span>
@@ -59,7 +57,14 @@ export function AppSidebar({
 
       {/* 导航 */}
       <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-3">
-        <NavItem href="/projects" label="工作台" icon="▦" active={isActive("/projects")} />
+        <NavItem href={workbenchHref} label="工作台" icon="▦" active={isActive("/projects")} />
+        <NavItem href={scopedHref("/tasks", focusedTeam?.id)} label="我的任务" icon="✓" active={isActive("/tasks")} />
+        {focusedTeam && (
+          <div className="rounded-field bg-white/10 px-2.5 py-2 text-xs text-white/85">
+            <p className="truncate">专注于 {focusedTeam.name}</p>
+            <Link href="/projects" className="mt-1 inline-block text-white/70 underline">退出专注 · 全部小组</Link>
+          </div>
+        )}
         {/* 消息：点击整行展开/收起「对话」「通知」 */}
         <div>
           <button
@@ -140,7 +145,7 @@ export function AppSidebar({
           </p>
         )}
 
-        {teams.map((t) => {
+        {teams.filter((t) => !focusedTeam || t.id === focusedTeam.id).map((t) => {
           const expanded = open[t.id] ?? false;
           return (
             <div key={t.id}>
@@ -160,14 +165,14 @@ export function AppSidebar({
                   {t.name}
                 </Link>
                 <span className="shrink-0 rounded-full bg-white/15 px-1.5 py-0.5 text-[10px] font-medium text-white/90">
-                  {ROLE_LABEL[t.role] ?? t.role}
+                  {displayStudentRole(t.role)}
                 </span>
               </div>
               {expanded &&
                 t.projects.map((p) => (
                   <Link
                     key={p.id}
-                    href={`/projects/${p.id}`}
+                    href={scopedHref(`/projects/${p.id}`, focusedTeam?.id)}
                     className={`flex items-center gap-2 rounded-field py-1.5 pl-9 pr-2 text-[13px] ${
                       pathname === `/projects/${p.id}`
                         ? "bg-white/15 text-white"
