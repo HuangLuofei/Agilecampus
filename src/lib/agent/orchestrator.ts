@@ -3,6 +3,7 @@ import { buildTools, type DraftEnvelope } from "./tools";
 import { buildProjectSnapshot } from "./snapshot";
 import {
   getOrCreateConversation,
+  listConversationMessages,
   persistTurn,
   type ToolTraceEntry,
 } from "./conversation";
@@ -12,7 +13,7 @@ const SYSTEM_PREAMBLE = `你是 AgileCampus（敏捷校园）的项目管理助�
 你的职责限于项目管理：拆解目标、排期、指派、跟踪进度、答疑项目现状。你不代做研究、编码或写作等实际工作。
 
 ## 写操作一律走草案
-建项目、建里程碑、拆任务、改任务、排期——这些工具都只产出**草案卡片**，由用户在界面上点「确认落库」后才真正生效。
+建项目、建里程碑、拆任务、改任务、排期、生成周报——这些工具都只产出**草案卡片**，由用户在界面上点「确认落库」后才真正生效。
 因此产出草案后，据实说「已拟好草案，请确认」，**绝不可声称已创建、已保存、已完成**。
 
 **只有真正调用工具才会生成草案卡片。你在正文里敲的文字不会变成草案。**
@@ -28,6 +29,7 @@ const SYSTEM_PREAMBLE = `你是 AgileCampus（敏捷校园）的项目管理助�
 - 改任务的状态/负责人/截止日/优先级 → 先 list_tasks 取 id 与现状，再 update_tasks
 - 把若干任务归入某里程碑并统一截止日 → plan_sprint
 - 新建项目 → create_project；新建里程碑（阶段节点）→ create_milestone
+- 用户要生成周报或「总结过去 N 天」→ 先据「今天」算出起止日期，调 confirm_report 产出确认卡片（确认后才真正生成，未经确认不得生成或只口述）
 
 ## 军规
 1. **一切 id 只能取自快照或工具返回**，禁止臆造，禁止拿人名或标题当 id。取不到就先调读工具。
@@ -39,7 +41,22 @@ const SYSTEM_PREAMBLE = `你是 AgileCampus（敏捷校园）的项目管理助�
    例：用户说「帮我新建一个完成ai的任务」——哪怕说法笼统，也直接调 decompose_tasks 拟出
    「完成 AI 功能」这条任务，负责人、截止日、里程碑一概留空。用户嫌不准，在卡片上改一下即可。
    卡片可改字段 + 确认落库一关已是双重兜底，先拟后改远胜于盘问。
-   唯有连「做什么」都完全无从判断时（如只说「帮我建个任务」而无任何内容）才发问，且一次问完。`;
+   唯有连「做什么」都完全无从判断时（如只说「帮我建个任务」而无任何内容）才发问，且一次问完。
+7. 「过去 N 天」＝今天往前推 N 天（startDate = 今天-(N-1) 天，endDate = 今天）。周报必须走 confirm_report 确认卡片，用户确认后才生成草稿，绝不未经确认生成。`;
+
+// 多轮上下文长度上限（字符，近似）：只保留最近消息，越界从最旧截断
+const MAX_HISTORY_CHARS = 12_000;
+
+function limitHistory(msgs: { role: "user" | "assistant"; content: string }[]) {
+  const out: typeof msgs = [];
+  let used = 0;
+  for (let i = msgs.length - 1; i >= 0; i--) {
+    if (out.length > 0 && used + msgs[i].content.length > MAX_HISTORY_CHARS) break;
+    out.unshift(msgs[i]);
+    used += msgs[i].content.length;
+  }
+  return out;
+}
 
 export async function runAgentTurn(params: {
   actorId: string;
@@ -54,6 +71,14 @@ export async function runAgentTurn(params: {
   const snapshot = await buildProjectSnapshot(actorId, projectId);
   const tools = buildTools(actorId, projectId);
 
+  // 多轮上下文：读历史（仅 user/assistant 文案）并限制长度，避免超上下文
+  const prior = await listConversationMessages(actorId, conversation.id);
+  const history = limitHistory(
+    prior
+      .filter((m) => m.role === "user" || m.role === "assistant")
+      .map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+  );
+
   const result = await generateText({
     model: model ?? getModel(),
     system: `${SYSTEM_PREAMBLE}\n\n${snapshot}`,
@@ -61,7 +86,7 @@ export async function runAgentTurn(params: {
     stopWhen: stepCountIs(5),
     // 设计 §6.4：不自动重试——覆盖 AI SDK 默认 maxRetries=2，失败即如实呈报
     maxRetries: 0,
-    messages: [{ role: "user", content: userText }],
+    messages: [...history, { role: "user", content: userText }],
   });
 
   // 工具轨迹：逐步展开 toolCalls 与对应 toolResults

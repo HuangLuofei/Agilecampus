@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { tasks, projects, milestones } from "@/db/schema";
+import { tasks, projects, milestones, weeklyReports } from "@/db/schema";
 import { createUser } from "@/lib/user";
 import { createTeam, joinTeam } from "@/lib/team";
 import { createProject } from "@/lib/project";
@@ -28,13 +28,14 @@ const opts = {} as never;
 describe("写工具产草案不落库", () => {
   beforeEach(resetDb);
 
-  it("WRITE_TOOL_NAMES 含五写工具", () => {
+  it("WRITE_TOOL_NAMES 含六写工具", () => {
     expect(WRITE_TOOL_NAMES).toEqual([
       "create_project",
       "decompose_tasks",
       "update_tasks",
       "plan_sprint",
       "create_milestone",
+      "confirm_report",
     ]);
   });
 
@@ -51,6 +52,23 @@ describe("写工具产草案不落库", () => {
       draft: { title: "中期答辩", targetDate: "2026-11-15" },
     });
     const rows = await db.select().from(milestones).where(eq(milestones.projectId, project.id));
+    expect(rows).toHaveLength(0);
+  });
+
+  it("confirm_report 产确认草案，且不直接生成周报", async () => {
+    const { student, team, project } = await scene();
+    const tools = buildTools(student.id, project.id);
+    const out = await tools.confirm_report.execute!(
+      { startDate: "2026-10-20", endDate: "2026-10-27", includeRisks: true },
+      opts,
+    );
+    expect(out).toMatchObject({
+      __draft: true,
+      tool: "confirm_report",
+      draft: { startDate: "2026-10-20", endDate: "2026-10-27", includeRisks: true },
+    });
+    // 确认卡片只产草案：weekly_reports 表不得有行
+    const rows = await db.select().from(weeklyReports).where(eq(weeklyReports.teamId, team.id));
     expect(rows).toHaveLength(0);
   });
 

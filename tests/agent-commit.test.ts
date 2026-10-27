@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { tasks, projects } from "@/db/schema";
+import { tasks, projects, weeklyReports } from "@/db/schema";
 import { createUser } from "@/lib/user";
 import { createTeam, joinTeam, updateMemberRole } from "@/lib/team";
 import { createProject, createMilestone } from "@/lib/project";
@@ -134,5 +134,29 @@ describe("commitDraft 事务化", () => {
 
     const after = await listProjectTasks(owner.id, project.id);
     expect(after).toHaveLength(0); // 「合法一」不得残留
+  });
+});
+
+describe("commitDraft — confirm_report", () => {
+  beforeEach(resetDb);
+
+  it("确认后生成周报草稿，返回报告链接字段", async () => {
+    const { student, team, project } = await scene();
+    await createTask(student.id, project.id, { title: "已完成项" });
+    const today = new Date().toLocaleDateString("sv-SE");
+    const r = await commitDraft(student.id, project.id, "confirm_report", {
+      startDate: today,
+      endDate: today,
+      includeRisks: true,
+    });
+    expect(r.committed).toBe(1);
+    expect(r.teamId).toBe(team.id);
+    expect(r.reportId).toBeTruthy();
+
+    const rows = await db.select().from(weeklyReports).where(eq(weeklyReports.teamId, team.id));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe("draft");
+    expect(rows[0].draftBy).toBe(student.id);
+    expect(rows[0].periodStart).toBe(today);
   });
 });

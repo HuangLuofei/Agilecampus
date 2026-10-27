@@ -116,6 +116,18 @@ export default async function ProjectPage({
               时间线
             </a>
             <a
+              href={href(`/projects/${projectId}/iterations`)}
+              className="ac-btn-ghost whitespace-nowrap"
+            >
+              迭代
+            </a>
+            <a
+              href={href(`/teams/${project.teamId}/reports?project=${projectId}`)}
+              className="ac-btn-ghost whitespace-nowrap"
+            >
+              周报
+            </a>
+            <a
               href={href(`/projects/${projectId}/assets`)}
               className="ac-btn-ghost whitespace-nowrap"
             >

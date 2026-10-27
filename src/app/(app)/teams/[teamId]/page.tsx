@@ -110,6 +110,20 @@ export default async function TeamHomePage({
         )}
       </Section>
 
+      {/* 周报 */}
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <span aria-hidden className="h-4 w-1 rounded-full bg-primary" />
+          <h2 className="font-display text-base font-semibold text-ink">周报</h2>
+          <Link href={`/teams/${teamId}/reports`} className="ml-auto text-sm text-primary hover:underline">
+            生成与查看 →
+          </Link>
+        </div>
+        <div className="ac-card p-4 text-sm text-ink-soft">
+          智能周报：基于真实工作记录生成结构化周报，组长可正式发布并通知全员。
+        </div>
+      </section>
+
       {/* 成员 */}
       <Section title="成员" count={members.length} href={`/teams/${teamId}/members`}>
         {members.length === 0 ? (
