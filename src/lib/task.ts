@@ -130,7 +130,62 @@ async function validateParentTask(projectId: string, parentTaskId: string) {
     .where(and(eq(tasks.id, parentTaskId), eq(tasks.projectId, projectId)));
   if (!p) throw new AppError("父任务不属于该项目");
 }
+// ★ 新增 1. 深度优先搜索（DFS）：检查加了这个依赖后，会不会形成环
+async function checkCircularDependency(predecessorId: string, successorIds: string[]) {
+  const allDeps = await db.select({
+    predecessorId: taskDependencies.predecessorId,
+    successorId: taskDependencies.successorId,
+  }).from(taskDependencies);
 
+  // 把线性数据转成图：{ 任务A: [后置任务B, 后置任务C] }
+  const graph = new Map<string, string[]>();
+  for (const dep of allDeps) {
+    if (!graph.has(dep.predecessorId)) graph.set(dep.predecessorId, []);
+    graph.get(dep.predecessorId)!.push(dep.successorId);
+  }
+
+  // 算上这次新增的
+  for (const sid of successorIds) {
+    if (!graph.has(predecessorId)) graph.set(predecessorId, []);
+    if (!graph.get(predecessorId)!.includes(sid)) {
+      graph.get(predecessorId)!.push(sid);
+    }
+  }
+
+  // 从后置任务开始往下找，如果能找回到前置任务，说明成环了
+  const visited = new Set<string>();
+  const dfs = (currentId: string): boolean => {
+    if (currentId === predecessorId) return true; // 成环！
+    if (visited.has(currentId)) return false; // 查过了，此路不通
+    visited.add(currentId);
+    
+    const nextTasks = graph.get(currentId) || [];
+    for (const nextId of nextTasks) {
+      if (dfs(nextId)) return true;
+    }
+    return false;
+  };
+
+  for (const sid of successorIds) {
+    if (dfs(sid)) throw new AppError("设置失败：前后置任务之间形成了闭环（循环依赖）");
+  }
+}
+
+// ★ 新增 2. 查未完成的前置任务
+export async function getBlockingPredecessors(taskId: string) {
+  const preds = await db
+    .select({
+      id: tasks.id,
+      title: tasks.title,
+      status: tasks.status,
+    })
+    .from(taskDependencies)
+    .innerJoin(tasks, eq(taskDependencies.predecessorId, tasks.id))
+    .where(eq(taskDependencies.successorId, taskId));
+
+  // 过滤出状态不是 done 的任务
+  return preds.filter(p => p.status !== "done");
+}
 export async function createTask(
   actorId: string,
   projectId: string,
@@ -223,6 +278,7 @@ export async function updateTask(
     status?: TaskStatus;
     priority?: TaskPriority;
     completionNote?: string | null;
+    skipBlocking?: boolean;
   },
   opts?: { tx?: DbTx; actorType?: "human" | "ai" | "system" },
 ) {
@@ -231,6 +287,38 @@ export async function updateTask(
   if (!task) throw new AppError("任务不存在");
 
   const access = await requireTaskWrite(actorId, task.projectId);
+    // ★ 强制前后置关系拦截
+  if (patch.status === "doing" || patch.status === "done") {
+    if (patch.status !== task.status) {
+      const blockers = await getBlockingPredecessors(taskId);
+      
+      // 1. 如果有未完成的，且没传 skipBlocking，直接拦截！
+      if (blockers.length > 0 && !patch.skipBlocking) {
+        const names = blockers.map(b => b.title).join("、");
+        throw new AppError(`无法变更为该状态：被未完成的前置任务阻塞（${names}）`);
+      }
+
+      // 2. 如果有未完成的，但组长传了 skipBlocking 强跳，检查权限并留记录
+      if (blockers.length > 0 && patch.skipBlocking) {
+        if (access.role !== "admin" && access.role !== "teacher") {
+          throw new ForbiddenError("只有组长/管理员才能强制跳过前置任务");
+        }
+        
+        await recordTaskEvent({
+          taskId,
+          actorId,
+          action: "updated",
+          newValue: { 
+            bypassedBlockers: true, 
+            blockedTasks: blockers.map(b => b.id),
+            reason: "组长强制跳过前置"
+          },
+          tx: opts?.tx,
+        });
+      }
+    }
+  }
+
 
   // undefined = 本次不动负责人；[] = 清空为未指派
   const assigneePatch =
@@ -541,6 +629,7 @@ export async function setTaskSuccessors(
   if (!pred) throw new AppError("任务不存在");
   await requireTaskWrite(actorId, pred.projectId);
 
+  // 基本校验：不能自己依赖自己，不能跨项目
   for (const sid of successorIds) {
     if (sid === predecessorId) throw new AppError("后置任务不可构成循环");
     const [s] = await db
@@ -549,17 +638,10 @@ export async function setTaskSuccessors(
       .where(eq(tasks.id, sid));
     if (!s || s.projectId !== pred.projectId)
       throw new AppError("后置任务不属于该项目");
-    const [back] = await db
-      .select({ id: taskDependencies.id })
-      .from(taskDependencies)
-      .where(
-        and(
-          eq(taskDependencies.predecessorId, sid),
-          eq(taskDependencies.successorId, predecessorId),
-        ),
-      );
-    if (back) throw new AppError("后置任务不可构成循环");
   }
+
+  // ★ 核心改动：删掉了原来的直接反向校验，换成全链路 DFS 防循环
+  await checkCircularDependency(predecessorId, successorIds);
 
   await db.transaction(async (tx) => {
     await tx.delete(taskDependencies).where(eq(taskDependencies.predecessorId, predecessorId));

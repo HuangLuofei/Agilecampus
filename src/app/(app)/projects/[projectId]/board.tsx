@@ -1,6 +1,6 @@
 "use client";
 
-import { useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useState, useTransition, useMemo } from "react";
 import {
   DndContext,
   PointerSensor,
@@ -106,6 +106,7 @@ export function Board({
 }) {
   const [, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [sortBy, setSortBy] = useState<"manual" | "priority" | "dueDate">("manual");
   const [optimisticTasks, moveOptimistic] = useOptimistic(
     tasks,
     (current, move: { taskId: string; patch: ColumnPatch }) =>
@@ -126,7 +127,25 @@ export function Board({
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
   );
+  // ★ 新增：根据下拉框的选择对任务进行排序
+  const sortedTasks = useMemo(() => {
+    const list = [...optimisticTasks];
+    const priorityWeight = { high: 3, medium: 2, low: 1 };
 
+    return list.sort((a, b) => {
+      if (sortBy === "priority") {
+        const wA = priorityWeight[a.priority as keyof typeof priorityWeight] || 0;
+        const wB = priorityWeight[b.priority as keyof typeof priorityWeight] || 0;
+        if (wA !== wB) return wB - wA;
+      } else if (sortBy === "dueDate") {
+        if (!a.dueDate && !b.dueDate) return 0;
+        if (!a.dueDate) return 1;
+        if (!b.dueDate) return -1;
+        return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+      }
+      return 0;
+    });
+  }, [optimisticTasks, sortBy]);
   const columns = deriveColumns(groupBy, { members, milestones });
 
   function handleDragEnd(event: DragEndEvent) {
@@ -148,14 +167,28 @@ export function Board({
 
   return (
     <DndContext id={`board-${projectId}`} sensors={sensors} onDragEnd={handleDragEnd}>
-      {error && <p className="text-sm text-high">{error}</p>}
+      {error && <p className="text-sm text-red-600 font-medium">{error}</p>}
       {/* 列数随分组维度而变，故横向滚动而非固定三栏 */}
+            {/* ★ 新增的排序下拉框 */}
+      <div className="mb-4 flex items-center gap-2">
+        <label htmlFor="sort-select" className="text-sm font-medium text-ink-soft">排序：</label>
+        <select
+          id="sort-select"
+          value={sortBy}
+          onChange={(e) => setSortBy(e.target.value as any)}
+          className="ac-input h-8 px-2 text-sm"
+        >
+          <option value="manual">手动排序</option>
+          <option value="priority">紧急优先</option>
+          <option value="dueDate">截止日期优先</option>
+        </select>
+      </div>
       <div className="flex gap-4 overflow-x-auto pb-2">
         {columns.map((col) => (
           <Column
             key={col.key}
             column={col}
-            tasks={optimisticTasks.filter((t) => col.matches(t))}
+            tasks={sortedTasks.filter((t) => col.matches(t))}
             projectId={projectId}
             canWrite={canWrite}
             members={members}

@@ -18,10 +18,11 @@ import { TaskAssets } from "./assets/task-assets";
 export type Option = { id: string; name: string; skillTags?: string[] };
 type TaskOption = { id: string; title: string };
 
+// 优先级颜色映射（背景色 + 文字色）
 const PRIORITY_BADGE: Record<string, string> = {
-  high: "bg-high-soft text-high",
-  medium: "bg-medium-soft text-medium",
-  low: "bg-low-soft text-low",
+  high: "bg-red-100 text-red-700",    // 高：浅红底，深红字
+  medium: "bg-amber-100 text-amber-700", // 中：浅黄底，深黄字
+  low: "bg-green-100 text-green-700",   // 低：浅绿底，深绿字
 };
 
 export function TaskCard({
@@ -122,8 +123,8 @@ export function TaskCard({
             </span>
           )}
           <span className={`ac-badge ${PRIORITY_BADGE[task.priority] ?? "bg-low-soft text-low"}`}>
-            {task.priority}
-          </span>
+  {task.priority === "high" ? "高" : task.priority === "medium" ? "中" : "低"}
+</span>
         </p>
         {task.labels.length > 0 && (
           <p className="mt-1 flex flex-wrap items-center gap-1">
