@@ -7,6 +7,7 @@ import { assets, documents, tasks, users, type AssetType } from "@/db/schema";
 import { AppError, ForbiddenError } from "./errors";
 import { getProjectForUser } from "./project";
 import { notifyTeamMembers } from "./notification";
+import { inferDeliverableKind, type DeliverableKind } from "./asset-deliverables";
 
 // 上传目录：开发阶段落 public/，经 /uploads/<name> 直取；生产须换对象存储（public 在 standalone 构建时静态复制）
 const UPLOAD_DIR = "uploads";
@@ -96,6 +97,8 @@ export interface CreateAssetInput {
   file?: File;
   taskId?: string;
   docId?: string;
+  // 交付物类型：显式指定优先；不传则按名称/MIME/链接特征自动预判，判不出为 null
+  deliverableKind?: DeliverableKind | null;
 }
 
 export async function createAsset(actorId: string, input: CreateAssetInput) {
@@ -122,6 +125,12 @@ export async function createAsset(actorId: string, input: CreateAssetInput) {
   if (input.taskId) await assertTaskInProject(input.projectId, input.taskId);
   if (input.docId) await assertDocInProject(input.projectId, input.docId);
 
+  // 显式传值（含 null=普通文件）优先；未传（undefined）才自动预判
+  const deliverableKind =
+    input.deliverableKind !== undefined
+      ? input.deliverableKind
+      : inferDeliverableKind(fileMime, name, input.assetType, url);
+
   const [asset] = await db
     .insert(assets)
     .values({
@@ -132,6 +141,7 @@ export async function createAsset(actorId: string, input: CreateAssetInput) {
       url: url!,
       fileMime,
       fileSize,
+      deliverableKind,
       taskId: input.taskId ?? null,
       docId: input.docId ?? null,
       uploadUserId: actorId,
@@ -173,6 +183,7 @@ export async function listProjectAssets(
       url: assets.url,
       fileMime: assets.fileMime,
       fileSize: assets.fileSize,
+      deliverableKind: assets.deliverableKind,
       isArchived: assets.isArchived,
       createdAt: assets.createdAt,
       updatedAt: assets.updatedAt,
@@ -192,7 +203,14 @@ export async function listProjectAssets(
 export async function updateAsset(
   actorId: string,
   assetId: string,
-  patch: { name?: string; description?: string | null; url?: string; isArchived?: boolean },
+  patch: {
+    name?: string;
+    description?: string | null;
+    url?: string;
+    isArchived?: boolean;
+    // 交付物类型：显式传 null 表示清为普通文件
+    deliverableKind?: DeliverableKind | null;
+  },
 ) {
   const asset = await requireAssetAccess(actorId, assetId);
 
@@ -201,7 +219,8 @@ export async function updateAsset(
       patch.isArchived === false &&
       patch.name === undefined &&
       patch.description === undefined &&
-      patch.url === undefined;
+      patch.url === undefined &&
+      patch.deliverableKind === undefined;
     if (!onlyUnarchive) throw new ForbiddenError("资产已归档，禁止修改或删除");
   }
 
@@ -213,6 +232,7 @@ export async function updateAsset(
       ...(patch.description !== undefined && { description: patch.description }),
       ...(patch.url !== undefined && { url: patch.url }),
       ...(patch.isArchived !== undefined && { isArchived: patch.isArchived }),
+      ...(patch.deliverableKind !== undefined && { deliverableKind: patch.deliverableKind }),
       updatedAt: new Date(),
     })
     .where(eq(assets.id, assetId))
@@ -241,13 +261,43 @@ export async function deleteAsset(actorId: string, assetId: string) {
   await removeUploadedFile(asset);
 }
 
-export async function bindTaskToAsset(actorId: string, assetId: string, taskId: string) {
+// 绑定任务：可顺带指定/更新交付物类型（不传则沿用原值）
+export async function bindTaskToAsset(
+  actorId: string,
+  assetId: string,
+  taskId: string,
+  deliverableKind?: DeliverableKind | null,
+) {
   const asset = await requireAssetAccess(actorId, assetId);
   assertNotArchived(asset);
   await assertTaskInProject(asset.projectId, taskId);
   const [updated] = await db
     .update(assets)
-    .set({ taskId, updatedAt: new Date() })
+    .set({
+      taskId,
+      ...(deliverableKind !== undefined && { deliverableKind }),
+      updatedAt: new Date(),
+    })
+    .where(eq(assets.id, assetId))
+    .returning();
+  return updated;
+}
+
+// 解除任务关联（资产保留）；可顺带调整交付物类型
+export async function unbindTaskFromAsset(
+  actorId: string,
+  assetId: string,
+  deliverableKind?: DeliverableKind | null,
+) {
+  const asset = await requireAssetAccess(actorId, assetId);
+  assertNotArchived(asset);
+  const [updated] = await db
+    .update(assets)
+    .set({
+      taskId: null,
+      ...(deliverableKind !== undefined && { deliverableKind }),
+      updatedAt: new Date(),
+    })
     .where(eq(assets.id, assetId))
     .returning();
   return updated;

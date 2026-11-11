@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
-import { bindTaskToAsset } from "@/lib/asset";
+import { bindTaskToAsset, unbindTaskFromAsset } from "@/lib/asset";
 import { AppError, ForbiddenError } from "@/lib/errors";
 
-const schema = z.object({ taskId: z.uuid("taskId 无效") });
+// taskId 传 uuid=绑定；传 null=解除关联（资产保留）。
+// deliverableKind 可顺带指定交付物类型（presentation/survey/code，null=普通文件），不传则沿用原值。
+const schema = z.object({
+  taskId: z.uuid("taskId 无效").nullable(),
+  deliverableKind: z.enum(["presentation", "survey", "code"]).nullish(),
+});
 
-// 资产绑定任务：任务须属于资产所在项目；归档资产 403
+// 资产绑定/解绑任务：任务须属于资产所在项目；归档资产 403
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ assetId: string }> },
@@ -21,7 +26,11 @@ export async function POST(
   }
 
   try {
-    const asset = await bindTaskToAsset(session.user.id, assetId, parsed.data.taskId);
+    const { taskId, deliverableKind } = parsed.data;
+    const asset =
+      taskId === null
+        ? await unbindTaskFromAsset(session.user.id, assetId, deliverableKind)
+        : await bindTaskToAsset(session.user.id, assetId, taskId, deliverableKind);
     return NextResponse.json({ asset });
   } catch (e) {
     if (e instanceof ForbiddenError) return NextResponse.json({ error: e.message }, { status: 403 });

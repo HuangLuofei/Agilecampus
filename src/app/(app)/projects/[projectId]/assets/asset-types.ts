@@ -1,4 +1,8 @@
 // 资产相关的共享类型与纯函数（供资产列表 / 选择器 / 任务挂载 / 文档编辑器复用）
+import type { DeliverableKind } from "@/lib/asset-deliverables";
+
+export type { DeliverableKind };
+
 export type AssetItem = {
   id: string;
   projectId: string;
@@ -12,6 +16,7 @@ export type AssetItem = {
   url: string;
   fileMime: string | null;
   fileSize: number | null;
+  deliverableKind: DeliverableKind | null;
   isArchived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -187,3 +192,11 @@ export function getAssetTypeLabel(
 ): string {
   return LABEL_BY_KIND[getAssetKind(fileMime, name, assetType)];
 }
+
+// ── 交付物类型（演示文稿 / 问卷 / 代码包）────────────────────────────────
+// 纯实现位于 src/lib/asset-deliverables.ts（服务端/客户端共用），此处 re-export 供界面复用。
+export {
+  DELIVERABLE_KIND_LABELS,
+  DELIVERABLE_KIND_ICONS,
+  inferDeliverableKind,
+} from "@/lib/asset-deliverables";

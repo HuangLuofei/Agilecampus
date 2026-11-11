@@ -30,6 +30,8 @@ export type BoardTask = {
   assignees: { id: string; name: string }[];
   milestoneId: string | null;
   labels: { id: string; name: string; color: string }[];
+  // 已挂载资产的交付物类型计数（演示文稿/问卷/代码包/其他），供卡片角标展示
+  deliverables?: { presentation: number; survey: number; code: number; other: number };
 };
 
 function Column({

@@ -12,6 +12,8 @@ const createSchema = z.object({
   url: z.string().trim().optional(),
   taskId: z.uuid().optional(),
   docId: z.uuid().optional(),
+  // 交付物类型（演示文稿/问卷/代码包）；不传自动预判
+  deliverableKind: z.enum(["presentation", "survey", "code"]).nullish(),
 });
 
 // 新增资产（multipart）：assetType=link 传 url；assetType=file 传 file（内嵌上传）或 url（引用已上传）
