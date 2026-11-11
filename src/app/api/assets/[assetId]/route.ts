@@ -9,6 +9,8 @@ const patchSchema = z.object({
   description: z.string().trim().optional().nullable(),
   url: z.string().trim().min(1, "url 不能为空").optional(),
   isArchived: z.boolean().optional(),
+  // 交付物类型：presentation/survey/code，显式传 null 清为普通文件
+  deliverableKind: z.enum(["presentation", "survey", "code"]).nullish(),
 });
 
 // 编辑资产：归档中仅允许「取消归档」，其余变更 403

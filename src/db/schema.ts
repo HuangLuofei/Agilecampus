@@ -601,6 +601,15 @@ export const userPinnedRooms = pgTable('user_pinned_rooms', {
 export const assetTypeEnum = pgEnum("asset_type", ["file", "link"]);
 export type AssetType = (typeof assetTypeEnum.enumValues)[number];
 
+// 交付物类型：演示文稿(presentation) / 问卷(survey) / 代码包(code)；空=普通文件。
+// 用于任务产出物分类绑定与展示（任务详情分组、卡片角标）。
+export const deliverableKindEnum = pgEnum("deliverable_kind", [
+  "presentation",
+  "survey",
+  "code",
+]);
+export type DeliverableKind = (typeof deliverableKindEnum.enumValues)[number];
+
 // 项目资产：挂在 project 下。权限沿用团队可见性——asset → project → team 链条，
 // 同团队所有人可见本团队所有项目资产、非团队成员禁止访问；故不另设 team_id 字段。
 // taskId / docId 可空：一个资产至多关联一个任务、一个文档；被关联对象删除时置 null，资产保留。
@@ -630,6 +639,8 @@ export const assets = pgTable(
     fileMime: text("file_mime"),
     // [file] 字节数（int8，mode:number；单文件 < 2^53 字节足够安全）
     fileSize: bigint("file_size", { mode: "number" }),
+    // 交付物类型（可空）：presentation=演示文稿 / survey=问卷 / code=代码包；null=普通文件
+    deliverableKind: deliverableKindEnum("deliverable_kind"),
     // 归档锁定：归档后不再展示于常规列表、禁止再编辑/删除/绑定
     isArchived: boolean("is_archived").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

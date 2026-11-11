@@ -1,9 +1,9 @@
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 import { auth } from "@/lib/auth";
 import { db } from "@/db";
-import { conversations, messages as messagesTable } from "@/db/schema";
+import { assets as assetsTable, conversations, messages as messagesTable } from "@/db/schema";
 import { getProjectForUser, listProjectMilestones } from "@/lib/project";
 import { listTeamMembers } from "@/lib/team";
 import { listProjectTasks, listProjectDependencies } from "@/lib/task";
@@ -17,6 +17,7 @@ import { FilterBar } from "./filter-bar";
 import { listTaskComments } from "@/lib/comment";
 import { listTaskEvents } from "@/lib/activity";
 import { TaskCollaboration } from "./task-collaboration";
+import { TaskAssets } from "./assets/task-assets";
 import { BackButton } from "@/components/back-button";
 import Link from "next/link";
 import { scopedHref } from "@/lib/workbench-navigation";
@@ -40,13 +41,33 @@ export default async function ProjectPage({
   const teamId = sp.team === project.teamId ? project.teamId : null;
   const href = (path: string) => scopedHref(path, teamId);
 
-  const [projectMilestones, projectTasks, members, dependencies, teamLabels] = await Promise.all([
-    listProjectMilestones(session.user.id, projectId),
-    listProjectTasks(session.user.id, projectId),
-    listTeamMembers(project.teamId),
-    listProjectDependencies(session.user.id, projectId),
-    listTeamLabels(session.user.id, project.teamId),
-  ]);
+  const [projectMilestones, projectTasks, members, dependencies, teamLabels, taskAssetRows] =
+    await Promise.all([
+      listProjectMilestones(session.user.id, projectId),
+      listProjectTasks(session.user.id, projectId),
+      listTeamMembers(project.teamId),
+      listProjectDependencies(session.user.id, projectId),
+      listTeamLabels(session.user.id, project.teamId),
+      // 任务卡交付物角标数据：按任务聚合非归档资产的交付物类型计数
+      db
+        .select({
+          taskId: assetsTable.taskId,
+          deliverableKind: assetsTable.deliverableKind,
+        })
+        .from(assetsTable)
+        .where(and(eq(assetsTable.projectId, projectId), eq(assetsTable.isArchived, false))),
+    ]);
+
+  type DeliverableCounts = { presentation: number; survey: number; code: number; other: number };
+  const deliverablesByTask = new Map<string, DeliverableCounts>();
+  for (const row of taskAssetRows) {
+    if (!row.taskId) continue;
+    const cur =
+      deliverablesByTask.get(row.taskId) ??
+      ({ presentation: 0, survey: 0, code: 0, other: 0 } satisfies DeliverableCounts);
+    cur[row.deliverableKind ?? "other"] += 1;
+    deliverablesByTask.set(row.taskId, cur);
+  }
 
   const filters = parseFilters(
     new URLSearchParams(
@@ -176,6 +197,12 @@ export default async function ProjectPage({
             assignees: t.assignees,
             milestoneId: t.milestoneId,
             labels: t.labels,
+            deliverables: deliverablesByTask.get(t.id) ?? {
+              presentation: 0,
+              survey: 0,
+              code: 0,
+              other: 0,
+            },
           }))}
           canWrite={canWrite}
           members={members}
@@ -211,6 +238,10 @@ export default async function ProjectPage({
           {selectedTask.description && (
             <p className="mt-4 whitespace-pre-wrap text-sm text-ink-soft">{selectedTask.description}</p>
           )}
+          {/* 交付物/挂载资产：任务相关文件按类型分组，一处看全 */}
+          <div className="mt-4">
+            <TaskAssets projectId={projectId} taskId={selectedTask.id} canWrite={canWrite} />
+          </div>
           <TaskCollaboration
             projectId={projectId}
             taskId={selectedTask.id}

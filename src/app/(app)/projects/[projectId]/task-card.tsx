@@ -99,8 +99,7 @@ export function TaskCard({
       >
         <p className="font-medium text-ink">{task.title}</p>
         <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft">
-          <span>{assigneeNames.length > 0 ? assigneeNames.join("、") : "未分配"}</span>
-          {(task.startDate || task.dueDate) && (
+          <span>{assigneeNames.length > 0 ? assigneeNames.join("、") : "未分配"}</span>          {(task.startDate || task.dueDate) && (
             <span
               className={
                 dueState === "overdue"
@@ -141,6 +140,26 @@ export function TaskCard({
             )}
           </p>
         )}
+        {(() => {
+          const d = task.deliverables;
+          const items = [
+            { key: "presentation", icon: "📊", label: "演示文稿", n: d?.presentation ?? 0 },
+            { key: "survey", icon: "📝", label: "问卷", n: d?.survey ?? 0 },
+            { key: "code", icon: "📦", label: "代码包", n: d?.code ?? 0 },
+            { key: "other", icon: "📎", label: "其他文件", n: d?.other ?? 0 },
+          ].filter((x) => x.n > 0);
+          if (items.length === 0) return null;
+          return (
+            <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-ink-soft" title="已挂载交付物">
+              {items.map((x) => (
+                <span key={x.key} className="ac-badge bg-sunken text-ink-soft">
+                  <span aria-hidden>{x.icon}</span>
+                  <span className="ml-0.5">×{x.n}</span>
+                </span>
+              ))}
+            </p>
+          );
+        })()}
         {task.description && (
           <p className="mt-1 text-xs text-ink-soft line-clamp-2">{task.description}</p>
         )}
